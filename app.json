@@ -1,17 +1,20 @@
 {
   "expo": {
-    "name": "fotaAtiva",
-    "slug": "fotaAtiva",
+    "name": "frotaAtiva",
+    "slug": "frotaAtiva",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fotaativa",
+    "scheme": "frotaativa",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gustavopamplona.frotaativa",
+      "googleServicesFile": "./ios/GoogleService-Info.plist"
     },
     "android": {
+      "package": "com.gustavopamplona.frotaativa",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,7 +41,10 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
     ],
     "experiments": {
       "typedRoutes": true,
