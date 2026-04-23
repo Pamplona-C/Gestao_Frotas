@@ -1,15 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
-import { Text, Button, Surface } from 'react-native-paper';
+import { Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { useAuthStore } from '../../store/auth.store';
-import { createOS } from '../../services/os.service';
+import { createOS, updateOS } from '../../services/os.service';
 import { getVeiculoByPlaca } from '../../services/veiculo.service';
+import { uploadFotosOS } from '../../services/storage.service';
 import { Colors } from '../../constants/colors';
+
+type Fase = 'enviando' | 'concluido';
 
 export default function Etapa6() {
   const router = useRouter();
@@ -17,45 +20,113 @@ export default function Etapa6() {
   const { currentUser } = useAuthStore();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const submittedRef = useRef(false);
-  const [osId, setOsId] = useState<string>('…');
+
+  const [fase, setFase] = useState<Fase>('enviando');
+  const [progresso, setProgresso] = useState<number | null>(null);
+  const [osId, setOsId] = useState<string>('');
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     if (submittedRef.current || !store.placa) return;
     submittedRef.current = true;
 
     async function submit() {
-      // Capturar placa antes do reset para usar na notificação
-      const placa = store.placa;
-      const veiculo = await getVeiculoByPlaca(placa);
-      const novaOS = await createOS({
-        placa,
-        frota: veiculo?.frota ?? '—',
-        condutorId: currentUser?.uid ?? '',
-        condutorNome: currentUser?.nome ?? '',
-        hodometro: parseInt(store.hodometro) || 0,
-        tipo: store.tipo as any,
-        servicos: store.servicosSelecionados,
-        descricao: store.descricao || undefined,
-        foto: store.foto || undefined,
-        cidade: store.cidade,
-        dataDesejada: store.dataDesejada || undefined,
-        horario: store.horario || undefined,
-        observacoes: store.observacoes || undefined,
-      });
-      setOsId(novaOS.id);
-      store.reset();
-      // Notificação disparada automaticamente pela Cloud Function (trigger onCreate)
+      try {
+        const placa = store.placa;
+        const fotosUris = store.fotos;
+
+        const veiculo = await getVeiculoByPlaca(placa);
+        const novaOS = await createOS({
+          placa,
+          frota: veiculo?.frota ?? '—',
+          condutorId: currentUser?.uid ?? '',
+          condutorNome: currentUser?.nome ?? '',
+          hodometro: parseInt(store.hodometro) || 0,
+          tipo: store.tipo as any,
+          servicos: store.servicosSelecionados,
+          descricao: store.descricao || undefined,
+          cidade: store.cidade,
+          dataDesejada: store.dataDesejada || undefined,
+          horario: store.horario || undefined,
+          observacoes: store.observacoes || undefined,
+        });
+
+        if (fotosUris.length > 0) {
+          const urls = await uploadFotosOS(fotosUris, novaOS.id, (pct) => setProgresso(pct));
+          await updateOS(novaOS.id, { fotos: urls });
+        }
+
+        setOsId(novaOS.id);
+        store.reset();
+        setFase('concluido');
+
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 80,
+          useNativeDriver: true,
+        }).start();
+      } catch (e: any) {
+        setErro(e?.message ?? 'Erro ao criar OS');
+      }
     }
 
     submit();
-
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 80,
-      useNativeDriver: true,
-    }).start();
   }, []);
+
+  if (erro) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StepperHeader currentStep={6} />
+        <View style={styles.container}>
+          <Ionicons name="alert-circle-outline" size={72} color="#DC2626" />
+          <Text variant="headlineSmall" style={[styles.title, { color: '#DC2626' }]}>
+            Erro ao enviar OS
+          </Text>
+          <Text variant="bodyMedium" style={styles.subtitle}>{erro}</Text>
+          <Button
+            mode="contained"
+            style={styles.btn}
+            contentStyle={styles.btnContent}
+            onPress={() => router.replace('/(tabs)')}
+          >
+            Voltar ao início
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (fase === 'enviando') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StepperHeader currentStep={6} />
+        <View style={styles.container}>
+          <View style={styles.iconBg}>
+            <Ionicons name="cloud-upload-outline" size={56} color={Colors.primary} />
+          </View>
+          <Text variant="titleLarge" style={styles.title}>
+            {progresso !== null ? 'Enviando fotos…' : 'Criando OS…'}
+          </Text>
+          <Text variant="bodyMedium" style={styles.subtitle}>
+            Aguarde, não feche o aplicativo.
+          </Text>
+          {progresso !== null && (
+            <View style={styles.progressWrapper}>
+              <ProgressBar
+                progress={progresso / 100}
+                color={Colors.primary}
+                style={styles.progressBar}
+              />
+              <Text variant="labelMedium" style={styles.progressLabel}>
+                {progresso}%
+              </Text>
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -116,6 +187,17 @@ const styles = StyleSheet.create({
     padding: 32,
     gap: 16,
   },
+  iconBg: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#BBF7D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
   iconWrapper: { marginBottom: 8 },
   title: {
     fontWeight: '700',
@@ -126,6 +208,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  progressWrapper: { width: '100%', gap: 8 },
+  progressBar: { height: 8, borderRadius: 4 },
+  progressLabel: {
+    color: Colors.textSecondary,
+    textAlign: 'right',
   },
   osCard: {
     borderRadius: 12,

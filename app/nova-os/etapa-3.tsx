@@ -17,40 +17,51 @@ import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { Colors } from '../../constants/colors';
 
+const MAX_FOTOS = 5;
+
 export default function Etapa3() {
   const router = useRouter();
-  const {
-    servicosSelecionados,
-    descricao: storedDesc,
-    foto: storedFoto,
-    setDescricao,
-    setFoto,
-  } = useNovaOSStore();
+  const { servicosSelecionados, descricao: storedDesc, fotos: storedFotos, setDescricao, setFotos } =
+    useNovaOSStore();
 
   const [desc, setDesc] = useState(storedDesc);
-  const [foto, setFotoLocal] = useState<string | null>(storedFoto);
+  const [fotos, setFotosLocal] = useState<string[]>(storedFotos);
 
-  const pickImage = async () => {
+  const addFotos = async () => {
     if (Platform.OS === 'web') {
-      setFotoLocal('https://placehold.co/400x300/e2e8f0/94a3b8?text=Foto');
+      if (fotos.length < MAX_FOTOS) {
+        setFotosLocal((prev) => [
+          ...prev,
+          `https://placehold.co/400x300/e2e8f0/94a3b8?text=Foto+${prev.length + 1}`,
+        ]);
+      }
       return;
     }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
+
+    const remaining = MAX_FOTOS - fotos.length;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
       quality: 0.7,
     });
-    if (!result.canceled && result.assets[0]) {
-      setFotoLocal(result.assets[0].uri);
+
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map((a) => a.uri);
+      setFotosLocal((prev) => [...prev, ...uris].slice(0, MAX_FOTOS));
     }
+  };
+
+  const removePhoto = (index: number) => {
+    setFotosLocal((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onNext = () => {
     setDescricao(desc);
-    setFoto(foto);
+    setFotos(fotos);
     router.push('/nova-os/etapa-4');
   };
 
@@ -98,29 +109,38 @@ export default function Etapa3() {
           </Surface>
         </View>
 
-        {/* Foto */}
+        {/* Fotos */}
         <View style={styles.field}>
-          <Text variant="labelLarge" style={styles.label}>Foto do problema (opcional)</Text>
-          <TouchableOpacity style={styles.photoBox} onPress={pickImage}>
-            {foto ? (
-              <View style={{ width: '100%' }}>
-                <Image source={{ uri: foto }} style={styles.photo} resizeMode="cover" />
-                <TouchableOpacity
-                  style={styles.removePhoto}
-                  onPress={() => setFotoLocal(null)}
-                >
-                  <Ionicons name="close-circle" size={28} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Ionicons name="camera-outline" size={32} color={Colors.textHint} />
-                <Text variant="bodySmall" style={{ color: Colors.textHint, marginTop: 4 }}>
-                  Toque para adicionar foto
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.labelRow}>
+            <Text variant="labelLarge" style={styles.label}>
+              Fotos do problema (opcional)
+            </Text>
+            <Text variant="labelSmall" style={styles.fotosCounter}>
+              {fotos.length}/{MAX_FOTOS}
+            </Text>
+          </View>
+
+          {fotos.length > 0 && (
+            <View style={styles.photoGrid}>
+              {fotos.map((uri, i) => (
+                <View key={i} style={styles.photoThumbWrapper}>
+                  <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => removePhoto(i)}>
+                    <Ionicons name="close-circle" size={22} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {fotos.length < MAX_FOTOS && (
+            <TouchableOpacity style={styles.addPhotoBtn} onPress={addFotos}>
+              <Ionicons name="camera-outline" size={24} color={Colors.primary} />
+              <Text style={styles.addPhotoText}>
+                {fotos.length === 0 ? 'Adicionar fotos' : 'Adicionar mais'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <Button
@@ -159,7 +179,9 @@ const styles = StyleSheet.create({
   servTitle: { color: Colors.primary, marginBottom: 4, fontWeight: '600' },
   servRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   field: { marginBottom: 16 },
-  label: { color: Colors.textPrimary, marginBottom: 8, fontWeight: '600' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  label: { color: Colors.textPrimary, fontWeight: '600' },
+  fotosCounter: { color: Colors.textHint },
   textAreaSurface: {
     borderRadius: 8,
     backgroundColor: Colors.card,
@@ -173,20 +195,44 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     minHeight: 100,
   },
-  photoBox: {
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  photoThumbWrapper: {
+    width: '30%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    overflow: 'visible',
+  },
+  photoThumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    backgroundColor: Colors.border,
+  },
+  removeBtn: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  addPhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.primary,
     borderStyle: 'dashed',
-    overflow: 'hidden',
-    minHeight: 140,
-    backgroundColor: Colors.card,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: 14,
+    backgroundColor: '#F0FDF4',
   },
-  photo: { width: '100%', height: 180 },
-  removePhoto: { position: 'absolute', top: 8, right: 8 },
-  photoPlaceholder: { alignItems: 'center', padding: 24 },
+  addPhotoText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
   btn: { marginTop: 8, borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
 });

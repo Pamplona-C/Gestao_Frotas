@@ -117,12 +117,21 @@ export default function Etapa5() {
           ))}
         </SummarySection>
 
-        {/* Descrição */}
-        {store.descricao ? (
+        {/* Descrição + Fotos */}
+        {(store.descricao || store.fotos.length > 0) ? (
           <SummarySection title="Descrição" step={3} onEdit={() => router.push('/nova-os/etapa-3')}>
-            <Text variant="bodySmall" style={{ color: Colors.textSecondary, lineHeight: 20 }}>
-              {store.descricao}
-            </Text>
+            {store.descricao ? (
+              <Text variant="bodySmall" style={{ color: Colors.textSecondary, lineHeight: 20 }}>
+                {store.descricao}
+              </Text>
+            ) : null}
+            {store.fotos.length > 0 && (
+              <SummaryRow
+                icon="images-outline"
+                label="Fotos"
+                value={`${store.fotos.length} foto${store.fotos.length > 1 ? 's' : ''} selecionada${store.fotos.length > 1 ? 's' : ''}`}
+              />
+            )}
           </SummarySection>
         ) : null}
 

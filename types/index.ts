@@ -77,7 +77,7 @@ export interface OrdemServico {
   tipo: OSTipo;
   servicos?: string[];
   descricao?: string;
-  foto?: string;
+  fotos?: string[];
   cidade?: string;
   dataDesejada?: string;
   horario?: string;

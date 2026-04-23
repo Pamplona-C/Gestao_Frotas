@@ -49,6 +49,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2abc95fc-c49e-45f5-a0fa-4a24bb9e06fd"
+      }
+    },
+    "owner": "pamplonacoelho"
   }
 }

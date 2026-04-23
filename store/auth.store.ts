@@ -7,6 +7,7 @@ import {
   mapFirebaseError,
 } from '../services/auth.service';
 import { registrarTokenFCM } from '../services/notification.service';
+import { auth } from '../lib/firebase';
 import { AppUser } from '../types';
 
 interface AuthState {
@@ -21,7 +22,7 @@ interface AuthState {
   login:          (email: string, password: string) => Promise<boolean>;
   loginWithGoogle:(idToken: string) => Promise<boolean>;
   logout:         () => Promise<void>;
-  updatePhoto:    (uri: string | null) => Promise<void>;
+  updatePhoto:    (uri: string | null, onProgress?: (pct: number) => void) => Promise<void>;
   clearError:     () => void;
 }
 
@@ -64,10 +65,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ currentUser: null, error: null });
   },
 
-  updatePhoto: async (uri) => {
-    await updatePhotoURL(uri);
+  updatePhoto: async (uri, onProgress) => {
+    await updatePhotoURL(uri, onProgress);
+    // updatePhotoURL pode ter feito upload e gerado uma URL nova — reler do Auth
+    const finalURL = auth.currentUser?.photoURL ?? uri;
     set((s) => ({
-      currentUser: s.currentUser ? { ...s.currentUser, photoURL: uri } : null,
+      currentUser: s.currentUser ? { ...s.currentUser, photoURL: finalURL } : null,
     }));
   },
 

@@ -11,7 +11,7 @@ interface NovaOSState {
   servicosSelecionados: string[];
   // Etapa 3
   descricao: string;
-  foto: string | null;
+  fotos: string[];
   // Etapa 4
   dataDesejada: string;
   horario: string;
@@ -23,7 +23,7 @@ interface NovaOSState {
   setTipo: (v: OSTipo | '') => void;
   setServicosSelecionados: (v: string[]) => void;
   setDescricao: (v: string) => void;
-  setFoto: (v: string | null) => void;
+  setFotos: (v: string[]) => void;
   setDataDesejada: (v: string) => void;
   setHorario: (v: string) => void;
   setObservacoes: (v: string) => void;
@@ -37,7 +37,7 @@ const initialState = {
   tipo: '' as OSTipo | '',
   servicosSelecionados: [] as string[],
   descricao: '',
-  foto: null,
+  fotos: [] as string[],
   dataDesejada: '',
   horario: '',
   observacoes: '',
@@ -51,7 +51,7 @@ export const useNovaOSStore = create<NovaOSState>((set) => ({
   setTipo: (tipo) => set({ tipo }),
   setServicosSelecionados: (servicosSelecionados) => set({ servicosSelecionados }),
   setDescricao: (descricao) => set({ descricao }),
-  setFoto: (foto) => set({ foto }),
+  setFotos: (fotos) => set({ fotos }),
   setDataDesejada: (dataDesejada) => set({ dataDesejada }),
   setHorario: (horario) => set({ horario }),
   setObservacoes: (observacoes) => set({ observacoes }),

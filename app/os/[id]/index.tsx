@@ -4,7 +4,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +19,12 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
 import { subscribeToOSById } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
+import { getUserById } from '../../../services/auth.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { OrdemServico, Fornecedor } from '../../../types';
+import { OrdemServico, Fornecedor, UserProfile } from '../../../types';
 import { Colors } from '../../../constants/colors';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
@@ -32,12 +38,58 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
   );
 }
 
+function FotoGaleria({ fotos, condutorNome }: { fotos: string[]; condutorNome: string }) {
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+
+  return (
+    <>
+      <Surface style={styles.card} elevation={1}>
+        <Text variant="titleSmall" style={styles.cardTitle}>
+          Fotos do problema ({fotos.length})
+        </Text>
+        <Divider style={{ marginBottom: 10 }} />
+        <View style={styles.photoGrid}>
+          {fotos.map((url, i) => (
+            <TouchableOpacity key={i} onPress={() => setFotoAmpliada(url)} activeOpacity={0.85}>
+              <Image
+                source={{ uri: url }}
+                style={styles.photoThumb}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Surface>
+
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
+        <View style={styles.lightboxBg}>
+          <TouchableOpacity style={styles.lightboxClose} onPress={() => setFotoAmpliada(null)}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {fotoAmpliada && (
+            <Image
+              source={{ uri: fotoAmpliada }}
+              style={styles.lightboxImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          )}
+          <Text style={styles.lightboxCaption}>{condutorNome}</Text>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
 export default function OSDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { currentUser } = useAuthStore();
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
+  const [condutorPerfil, setCondutorPerfil] = useState<UserProfile | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,6 +103,11 @@ export default function OSDetailScreen() {
           });
         } else {
           setFornecedor(null);
+        }
+        if (data?.condutorId) {
+          getUserById(data.condutorId).then((u) => {
+            if (mounted) setCondutorPerfil(u);
+          });
         }
       });
       return () => {
@@ -72,8 +129,14 @@ export default function OSDetailScreen() {
 
   const criadoEm = format(parseISO(os.criadoEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
   const dataDesejada = os.dataDesejada
-    ? format(parseISO(os.dataDesejada), "dd/MM/yyyy", { locale: ptBR })
+    ? format(parseISO(os.dataDesejada), 'dd/MM/yyyy', { locale: ptBR })
     : null;
+
+  const condutorInitials = os.condutorNome
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join('');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -113,17 +176,50 @@ export default function OSDetailScreen() {
         <Surface style={styles.card} elevation={1}>
           <Text variant="titleSmall" style={styles.cardTitle}>Informações gerais</Text>
           <Divider style={{ marginBottom: 10 }} />
+
+          {/* Condutor com foto */}
+          <View style={styles.condutorRow}>
+            {condutorPerfil?.photoURL ? (
+              <Image
+                source={{ uri: condutorPerfil.photoURL }}
+                style={styles.condutorAvatar}
+                cachePolicy="memory-disk"
+                transition={200}
+              />
+            ) : (
+              <View style={styles.condutorAvatarFallback}>
+                <Text style={styles.condutorInitials}>{condutorInitials}</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
+              <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                {os.condutorNome}
+              </Text>
+              {condutorPerfil?.departamento ? (
+                <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                  {condutorPerfil.departamento}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
           <View style={styles.infoGrid}>
-            <InfoRow icon="person-outline" label="Condutor" value={os.condutorNome} />
             <InfoRow icon="build-outline" label="Tipo" value={os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'} />
             <InfoRow icon="speedometer-outline" label="Hodômetro" value={`${os.hodometro.toLocaleString('pt-BR')} km`} />
             <InfoRow icon="calendar-outline" label="Abertura" value={criadoEm} />
             {os.cidade && <InfoRow icon="location-outline" label="Cidade" value={os.cidade} />}
-            {dataDesejada && <InfoRow icon="calendar-number-outline" label="Data desejada" value={`${dataDesejada}${os.horario ? ' às ' + os.horario : ''}`} />}
+            {dataDesejada && (
+              <InfoRow
+                icon="calendar-number-outline"
+                label="Data desejada"
+                value={`${dataDesejada}${os.horario ? ' às ' + os.horario : ''}`}
+              />
+            )}
           </View>
         </Surface>
 
-        {/* Services */}
+        {/* Serviços */}
         {(os.servicos && os.servicos.length > 0) && (
           <Surface style={styles.card} elevation={1}>
             <Text variant="titleSmall" style={styles.cardTitle}>Serviços solicitados</Text>
@@ -137,7 +233,7 @@ export default function OSDetailScreen() {
           </Surface>
         )}
 
-        {/* Description */}
+        {/* Descrição */}
         {os.descricao && (
           <Surface style={styles.card} elevation={1}>
             <Text variant="titleSmall" style={styles.cardTitle}>Descrição do problema</Text>
@@ -146,6 +242,11 @@ export default function OSDetailScreen() {
               {os.descricao}
             </Text>
           </Surface>
+        )}
+
+        {/* Fotos da OS */}
+        {os.fotos && os.fotos.length > 0 && (
+          <FotoGaleria fotos={os.fotos} condutorNome={os.condutorNome} />
         )}
 
         {/* Fornecedor */}
@@ -197,6 +298,8 @@ export default function OSDetailScreen() {
   );
 }
 
+const THUMB_SIZE = (SCREEN_W - 40 - 28 - 16) / 3;
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -234,9 +337,67 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  condutorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  condutorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  condutorAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  condutorInitials: { color: '#fff', fontWeight: '700', fontSize: 15 },
   infoGrid: { gap: 10 },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  photoThumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 8,
+    backgroundColor: Colors.border,
+  },
+  // Lightbox
+  lightboxBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.93)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lightboxClose: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    zIndex: 10,
+  },
+  lightboxImage: {
+    width: SCREEN_W,
+    height: SCREEN_W,
+  },
+  lightboxCaption: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    marginTop: 16,
+  },
   noteCard: { backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0' },
   noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   btn: { borderRadius: 10 },

@@ -5,9 +5,9 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
-  Image,
   RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Text, FAB, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,7 +83,7 @@ function CondutorHome() {
         </View>
         <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
           {currentUser?.photoURL ? (
-            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} />
+            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
           ) : (
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
@@ -198,7 +198,7 @@ function GestorDashboard() {
         </View>
         <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
           {currentUser?.photoURL ? (
-            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} />
+            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
           ) : (
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>

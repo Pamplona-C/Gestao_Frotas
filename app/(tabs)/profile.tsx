@@ -6,14 +6,14 @@ import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   Alert,
-  Image,
   Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, Divider, Portal, Snackbar, Surface, Text, TextInput } from 'react-native-paper';
+import { Image } from 'expo-image';
+import { ActivityIndicator, Button, Divider, Portal, Snackbar, Surface, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import { Colors } from '../../constants/colors';
@@ -48,6 +48,7 @@ export default function ProfileScreen() {
   const [snackMsg, setSnackMsg] = useState('');
   const [snackVisible, setSnackVisible] = useState(false);
   const [senhaExpandida, setSenhaExpandida] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const {
     control,
@@ -97,10 +98,13 @@ export default function ProfileScreen() {
 
     if (!result.canceled && result.assets[0]) {
       try {
-        await updatePhoto(result.assets[0].uri);
+        setUploadProgress(0);
+        await updatePhoto(result.assets[0].uri, (pct) => setUploadProgress(pct));
         showSnack('Foto atualizada com sucesso!');
       } catch {
         showSnack('Erro ao salvar foto.');
+      } finally {
+        setUploadProgress(null);
       }
     }
   };
@@ -159,17 +163,34 @@ export default function ProfileScreen() {
       >
         {/* ── Avatar ──────────────────────────────── */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity style={styles.avatarWrapper} onPress={handlePickPhoto} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            onPress={handlePickPhoto}
+            activeOpacity={0.85}
+            disabled={uploadProgress !== null}
+          >
             {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+              <Image
+                source={{ uri: photoURL }}
+                style={styles.avatarImage}
+                cachePolicy="memory-disk"
+                transition={200}
+              />
             ) : (
               <View style={styles.avatarFallback}>
                 <Text style={styles.avatarInitials}>{initials}</Text>
               </View>
             )}
-            <View style={styles.cameraOverlay}>
-              <Ionicons name="camera" size={16} color="#fff" />
-            </View>
+            {uploadProgress !== null ? (
+              <View style={styles.uploadOverlay}>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.uploadPct}>{uploadProgress}%</Text>
+              </View>
+            ) : (
+              <View style={styles.cameraOverlay}>
+                <Ionicons name="camera" size={16} color="#fff" />
+              </View>
+            )}
           </TouchableOpacity>
 
           <Text variant="titleLarge" style={styles.userName}>{currentUser?.nome}</Text>
@@ -433,6 +454,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.background,
   },
+  uploadOverlay: {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: 48,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  uploadPct: { color: '#fff', fontSize: 11, fontWeight: '700' },
   userName: { fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
   perfilBadge: {
     flexDirection: 'row',

@@ -196,14 +196,29 @@ export async function createUserAccount(data: {
 
 // ── Foto de perfil ─────────────────────────────────────────────────────────────
 
-// TODO: após integrar Storage, fazer upload aqui e salvar downloadURL
-export async function updatePhotoURL(photoURL: string | null): Promise<void> {
+export async function getUserById(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, 'usuarios', uid));
+  return snap.exists() ? (snap.data() as UserProfile) : null;
+}
+
+export async function updatePhotoURL(
+  localUriOrNull: string | null,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
 
-  // Atualiza Firebase Auth
-  await updateProfile(user, { photoURL: photoURL ?? '' });
+  let photoURL: string | null = localUriOrNull;
 
-  // Atualiza Firestore
+  if (localUriOrNull && localUriOrNull.startsWith('http')) {
+    // Já é uma URL remota (ex: Google Sign-In ou placehold.co no web) — usar direto
+    photoURL = localUriOrNull;
+  } else if (localUriOrNull) {
+    // URI local do device — fazer upload para Storage
+    const { uploadFotoPerfil } = await import('./storage.service');
+    photoURL = await uploadFotoPerfil(localUriOrNull, user.uid, onProgress);
+  }
+
+  await updateProfile(user, { photoURL: photoURL ?? '' });
   await updateDoc(doc(db, 'usuarios', user.uid), { photoURL });
 }

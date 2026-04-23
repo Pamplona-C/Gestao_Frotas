@@ -51,17 +51,21 @@ export default function RootLayout() {
     // require() condicional: Metro só carrega o módulo quando este branch é alcançado.
     if (Constants.appOwnership === 'expo') return;
 
+    // API modular v24: funções recebem instância getMessaging() como 1º argumento
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const messaging = require('@react-native-firebase/messaging').default;
+    const { getMessaging, onNotificationOpenedApp, getInitialNotification } =
+      require('@react-native-firebase/messaging');
+
+    const m = getMessaging();
 
     // App em background → tocou na notificação
-    const unsubBg = messaging().onNotificationOpenedApp((msg: any) => {
+    const unsubBg = onNotificationOpenedApp(m, (msg: any) => {
       const osId = msg?.data?.osId as string | undefined;
       if (osId) router.push(`/os/${osId}`);
     });
 
     // App fechado (cold start) → abriu pelo toque na notificação
-    messaging().getInitialNotification().then((msg: any) => {
+    getInitialNotification(m).then((msg: any) => {
       const osId = msg?.data?.osId as string | undefined;
       if (osId) router.push(`/os/${osId}`);
     });
