@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "516937613813",
+    "project_id": "frotaativa-96ffb",
+    "storage_bucket": "frotaativa-96ffb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:516937613813:android:9ec495ae41ab191d4c60bc",
+        "android_client_info": {
+          "package_name": "com.gustavopamplona.frotaativa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "516937613813-g05q5se7p3meh571mt5j6f1t7h3fnn0p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBcMbJJhPx7Lo2ZFlnh83xNXLK9JKCB-cE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "516937613813-g05q5se7p3meh571mt5j6f1t7h3fnn0p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
