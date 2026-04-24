@@ -5,11 +5,16 @@ import {
   doc,
   addDoc,
   onSnapshot,
+  query,
+  orderBy,
+  limit,
   type DocumentData,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Fornecedor } from '../types';
+
+const FORNECEDORES_LIMIT = 500;
 
 function docToFornecedor(id: string, data: DocumentData): Fornecedor {
   return { ...(data as Omit<Fornecedor, 'id'>), id };
@@ -18,19 +23,20 @@ function docToFornecedor(id: string, data: DocumentData): Fornecedor {
 export function subscribeToAllFornecedores(
   callback: (fornecedores: Fornecedor[]) => void
 ): Unsubscribe {
-  return onSnapshot(collection(db, 'fornecedores'), (snap) => {
+  const q = query(
+    collection(db, 'fornecedores'),
+    orderBy('nome'),
+    limit(FORNECEDORES_LIMIT),
+  );
+  return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => docToFornecedor(d.id, d.data())));
   });
 }
 
 export async function getAllFornecedores(): Promise<Fornecedor[]> {
-  const snap = await getDocs(collection(db, 'fornecedores'));
+  const q = query(collection(db, 'fornecedores'), orderBy('nome'), limit(FORNECEDORES_LIMIT));
+  const snap = await getDocs(q);
   return snap.docs.map((d) => docToFornecedor(d.id, d.data()));
-}
-
-export async function getFornecedoresByCidade(cidade: string): Promise<Fornecedor[]> {
-  const all = await getAllFornecedores();
-  return all.filter((f) => f.cidade.toLowerCase().includes(cidade.toLowerCase()));
 }
 
 export async function getFornecedorById(id: string): Promise<Fornecedor | null> {
