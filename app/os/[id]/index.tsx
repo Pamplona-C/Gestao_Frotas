@@ -90,6 +90,7 @@ export default function OSDetailScreen() {
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
   const [condutorPerfil, setCondutorPerfil] = useState<UserProfile | null>(null);
+  const [gestorPerfil, setGestorPerfil] = useState<UserProfile | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -108,6 +109,13 @@ export default function OSDetailScreen() {
           getUserById(data.condutorId).then((u) => {
             if (mounted) setCondutorPerfil(u);
           });
+        }
+        if (data?.gestorId) {
+          getUserById(data.gestorId).then((u) => {
+            if (mounted) setGestorPerfil(u);
+          });
+        } else {
+          setGestorPerfil(null);
         }
       });
       return () => {
@@ -133,6 +141,13 @@ export default function OSDetailScreen() {
     : null;
 
   const condutorInitials = os.condutorNome
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join('');
+
+  const gestorNome = gestorPerfil?.nome ?? os.gestorNome ?? '';
+  const gestorInitials = gestorNome
     .split(' ')
     .slice(0, 2)
     .map((n) => n[0])
@@ -203,6 +218,35 @@ export default function OSDetailScreen() {
               ) : null}
             </View>
           </View>
+
+          {/* Gestor responsável — visível apenas para o condutor */}
+          {os.gestorId && currentUser?.perfil === 'condutor' && (
+            <View style={[styles.condutorRow, { marginTop: 2 }]}>
+              {gestorPerfil?.photoURL ? (
+                <Image
+                  source={{ uri: gestorPerfil.photoURL }}
+                  style={[styles.condutorAvatar, { borderColor: Colors.accent }]}
+                  cachePolicy="memory-disk"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.condutorAvatarFallback, { backgroundColor: Colors.accent }]}>
+                  <Text style={styles.condutorInitials}>{gestorInitials}</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text variant="labelSmall" style={{ color: Colors.textHint }}>Responsável pelo atendimento</Text>
+                <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                  {gestorNome}
+                </Text>
+                {gestorPerfil?.departamento ? (
+                  <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                    {gestorPerfil.departamento}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          )}
 
           <View style={styles.infoGrid}>
             <InfoRow icon="build-outline" label="Tipo" value={os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'} />

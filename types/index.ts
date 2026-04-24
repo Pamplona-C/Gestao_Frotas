@@ -86,4 +86,6 @@ export interface OrdemServico {
   criadoEm: string;
   notaInterna?: string;
   observacoes?: string;
+  gestorId?:   string;
+  gestorNome?: string;
 }

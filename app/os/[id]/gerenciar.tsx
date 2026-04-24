@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { OrdemServico, OSStatus, Fornecedor } from '../../../types';
 import { subscribeToOSById, updateOS } from '../../../services/os.service';
 import { subscribeToAllFornecedores } from '../../../services/fornecedor.service';
+import { useAuthStore } from '../../../store/auth.store';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Colors } from '../../../constants/colors';
 
@@ -28,6 +29,7 @@ const STATUS_OPTIONS: { key: OSStatus; label: string; icon: string }[] = [
 export default function GerenciarOSScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { currentUser } = useAuthStore();
 
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [todos, setTodos] = useState<Fornecedor[]>([]);
@@ -67,11 +69,13 @@ export default function GerenciarOSScreen() {
   );
 
   const onSave = async () => {
-    if (!os) return;
+    if (!os || !currentUser) return;
     await updateOS(os.id, {
-      status: selectedStatus,
+      status:       selectedStatus,
       fornecedorId: selectedFornecedor ?? undefined,
-      notaInterna: nota || undefined,
+      notaInterna:  nota || undefined,
+      gestorId:     currentUser.uid,
+      gestorNome:   currentUser.nome,
     });
     // Notificação disparada automaticamente pela Cloud Function (trigger onUpdate)
     setSnack(true);
