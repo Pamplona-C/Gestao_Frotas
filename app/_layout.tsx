@@ -53,10 +53,40 @@ export default function RootLayout() {
 
     // API modular v24: funções recebem instância getMessaging() como 1º argumento
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getMessaging, onNotificationOpenedApp, getInitialNotification } =
+    const { getMessaging, onMessage, onNotificationOpenedApp, getInitialNotification } =
       require('@react-native-firebase/messaging');
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Notifications = require('expo-notifications');
+
     const m = getMessaging();
+
+    // Configura como notificações locais são exibidas (deve vir antes do onMessage)
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert:  true,
+        shouldShowBanner: true,
+        shouldShowList:   true,
+        shouldPlaySound:  true,
+        shouldSetBadge:   false,
+      }),
+    });
+
+    // App em FOREGROUND → FCM entrega silenciosamente; convertemos para notificação local
+    const unsubForeground = onMessage(m, async (msg: any) => {
+      const title = msg?.notification?.title ?? msg?.data?.title;
+      const body  = msg?.notification?.body  ?? msg?.data?.body;
+      if (!title) return;
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: msg?.data ?? {},
+          sound: true,
+        },
+        trigger: null, // disparo imediato
+      });
+    });
 
     // App em background → tocou na notificação
     const unsubBg = onNotificationOpenedApp(m, (msg: any) => {
@@ -70,19 +100,6 @@ export default function RootLayout() {
       if (osId) router.push(`/os/${osId}`);
     });
 
-    // App em foreground → exibe notificação local via expo-notifications
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Notifications = require('expo-notifications');
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert:  true,
-        shouldShowBanner: true,
-        shouldShowList:   true,
-        shouldPlaySound:  true,
-        shouldSetBadge:   false,
-      }),
-    });
-
     // Toque em notificação exibida em foreground
     const unsubFg = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const osId = response?.notification?.request?.content?.data?.osId as string | undefined;
@@ -90,6 +107,7 @@ export default function RootLayout() {
     });
 
     return () => {
+      unsubForeground();
       unsubBg();
       unsubFg.remove();
     };
