@@ -6,9 +6,18 @@ import { getApps, getApp, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   initializeAuth,
   getAuth,
-  inMemoryPersistence,
   type Auth,
+  type Persistence,
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// getReactNativePersistence está no export condicional 'react-native' do @firebase/auth.
+// TypeScript resolve os tipos pelo export padrão (browser) que não o inclui,
+// mas o Metro em runtime usa o bundle RN correto.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getReactNativePersistence } = require('firebase/auth') as {
+  getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence;
+};
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
@@ -27,10 +36,7 @@ let auth: Auth;
 
 if (!getApps().length) {
   app  = initializeApp(firebaseConfig);
-  // inMemoryPersistence works in both Expo Go and standalone builds.
-  // Users must log in again after an app restart — acceptable for this prototype.
-  // TODO: swap for a custom AsyncStorage persistence once native builds are enabled.
-  auth = initializeAuth(app, { persistence: inMemoryPersistence });
+  auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 } else {
   app  = getApp();
   auth = getAuth(app);
