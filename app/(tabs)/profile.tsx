@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   pageTitle: { fontWeight: '700', color: Colors.textPrimary },
 
-  scroll: { padding: 20, gap: 16, paddingBottom: 40 },
+  scroll: { padding: 20, gap: 16, paddingBottom: 110 },
 
   // Avatar
   avatarSection: { alignItems: 'center', gap: 8, paddingVertical: 8 },
