@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { View, StyleSheet, SectionList, ScrollView, RefreshControl, Linking, TouchableOpacity } from 'react-native';
 import {
   Text,
   TextInput,
@@ -18,15 +18,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Fornecedor } from '../../types';
 import { subscribeToAllFornecedores, createFornecedor } from '../../services/fornecedor.service';
+import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
 import { Colors } from '../../constants/colors';
 
 const schema = z.object({
   nome: z.string().min(2, 'Obrigatório'),
-  cidade: z.string().min(2, 'Ex: Goiânia - GO'),
+  cidade: z.string().min(2, 'Selecione uma cidade'),
   endereco: z.string().min(5, 'Obrigatório'),
   horario: z.string().min(2, 'Ex: Seg-Sex 8h-18h'),
   responsavel: z.string().min(2, 'Obrigatório'),
   telefone: z.string().min(10, 'Telefone inválido'),
+  googleMapsUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -61,20 +63,30 @@ export default function FornecedoresScreen() {
       f.cidade.toLowerCase().includes(busca.toLowerCase())
   );
 
+  const grouped = filtered.reduce<Record<string, Fornecedor[]>>((acc, f) => {
+    (acc[f.cidade] ??= []).push(f);
+    return acc;
+  }, {});
+  const sections = Object.entries(grouped)
+    .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+    .map(([title, data]) => ({ title, data }));
+
   const onSave = async (data: FormData) => {
-    await createFornecedor(data);
-    // onSnapshot já vai atualizar a lista automaticamente
+    const payload = Object.fromEntries(
+      Object.entries(data).filter(([, v]) => v !== undefined && v !== '')
+    ) as Omit<typeof data, 'id'>;
+    await createFornecedor(payload);
     setModal(false);
     reset();
   };
 
-  const fields: { key: keyof FormData; label: string; keyboard?: any }[] = [
+  const fields: { key: Exclude<keyof FormData, 'cidade'>; label: string; keyboard?: any }[] = [
     { key: 'nome', label: 'Nome da oficina' },
-    { key: 'cidade', label: 'Cidade (ex: Goiânia - GO)' },
     { key: 'endereco', label: 'Endereço' },
     { key: 'horario', label: 'Horário (ex: Seg-Sex 8h-18h)' },
     { key: 'responsavel', label: 'Responsável' },
     { key: 'telefone', label: 'Telefone', keyboard: 'phone-pad' },
+    { key: 'googleMapsUrl', label: 'Link do Google Maps (opcional)', keyboard: 'url' },
   ];
 
   return (
@@ -98,13 +110,21 @@ export default function FornecedoresScreen() {
         />
       </View>
 
-      <FlatList
-        data={filtered}
+      <SectionList
+        sections={sections}
         keyExtractor={(f) => f.id}
         renderItem={({ item }) => <FornecedorCard fornecedor={item} />}
+        renderSectionHeader={({ section: { title } }) => (
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location-outline" size={12} color={Colors.primary} />
+            <Text variant="labelSmall" style={styles.sectionHeaderText}>{title}</Text>
+          </View>
+        )}
+        SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        stickySectionHeadersEnabled={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
             colors={[Colors.primary]} tintColor={Colors.primary} />
@@ -130,29 +150,48 @@ export default function FornecedoresScreen() {
           <Text variant="titleMedium" style={styles.modalTitle}>Novo fornecedor</Text>
           <Divider style={{ marginBottom: 12 }} />
 
-          {fields.map(({ key, label, keyboard }) => (
-            <View key={key} style={{ marginBottom: 8 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {/* Campo cidade com autocomplete IBGE */}
+            <View style={{ marginBottom: 8 }}>
               <Controller
                 control={control}
-                name={key}
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <TextInput
-                    label={label}
-                    mode="outlined"
+                name="cidade"
+                render={({ field: { value, onChange } }) => (
+                  <CidadeAutocomplete
+                    label="Cidade"
                     value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    keyboardType={keyboard}
-                    error={!!errors[key]}
-                    dense
+                    onChange={onChange}
+                    error={!!errors.cidade}
+                    errorMessage={errors.cidade?.message}
                   />
                 )}
               />
-              {errors[key] && (
-                <Text style={styles.err}>{errors[key]?.message}</Text>
-              )}
             </View>
-          ))}
+
+            {fields.map(({ key, label, keyboard }) => (
+              <View key={key} style={{ marginBottom: 8 }}>
+                <Controller
+                  control={control}
+                  name={key}
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      label={label}
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType={keyboard}
+                      error={!!errors[key]}
+                      dense
+                    />
+                  )}
+                />
+                {errors[key] && (
+                  <Text style={styles.err}>{errors[key]?.message}</Text>
+                )}
+              </View>
+            ))}
+          </ScrollView>
 
           <View style={styles.modalActions}>
             <Button mode="outlined" onPress={() => setModal(false)} style={{ flex: 1 }}>
@@ -198,6 +237,18 @@ function FornecedorCard({ fornecedor }: { fornecedor: Fornecedor }) {
           {fornecedor.responsavel} · {fornecedor.telefone}
         </Text>
       </View>
+      {fornecedor.googleMapsUrl ? (
+        <TouchableOpacity
+          style={styles.mapsBtn}
+          onPress={() => Linking.openURL(fornecedor.googleMapsUrl!)}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="map-outline" size={13} color={Colors.primary} />
+          <Text variant="labelSmall" style={{ color: Colors.primary, fontWeight: '600' }}>
+            Ver no Google Maps
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </Surface>
   );
 }
@@ -222,15 +273,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderText: { color: Colors.primary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   modalContainer: {
     margin: 20,
     backgroundColor: Colors.card,
     borderRadius: 16,
     padding: 20,
-    gap: 4,
     maxHeight: '90%',
   },
   modalTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 12 },
   err: { fontSize: 11, color: '#DC2626', marginLeft: 4 },
 });

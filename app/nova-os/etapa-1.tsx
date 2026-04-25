@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -17,23 +16,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { StepperHeader } from '../../components/StepperHeader';
 import { SemInternet } from '../../components/SemInternet';
+import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { useConectividade } from '../../hooks/useConectividade';
 import { getVeiculoByPlaca } from '../../services/veiculo.service';
 import { Veiculo } from '../../types';
 import { Colors } from '../../constants/colors';
-
-const CIDADES = [
-  'Goiânia - GO', 'Aparecida de Goiânia - GO', 'Anápolis - GO',
-  'São Paulo - SP', 'Campinas - SP', 'Santo André - SP', 'Santos - SP',
-  'Curitiba - PR', 'Londrina - PR', 'Maringá - PR',
-  'Rio de Janeiro - RJ', 'Niterói - RJ', 'Petrópolis - RJ',
-  'Belo Horizonte - MG', 'Uberlândia - MG', 'Contagem - MG',
-  'Porto Alegre - RS', 'Caxias do Sul - RS', 'Pelotas - RS',
-  'Salvador - BA', 'Feira de Santana - BA',
-  'Fortaleza - CE', 'Caucaia - CE',
-  'Manaus - AM', 'Brasília - DF', 'Recife - PE',
-];
 
 const schema = z.object({
   placa: z
@@ -49,8 +37,6 @@ export default function Etapa1() {
   const router = useRouter();
   const online = useConectividade();
   const { placa: storedPlaca, hodometro: storedHod, cidade: storedCidade, setPlaca, setHodometro, setCidade } = useNovaOSStore();
-  const [cidadeQuery, setCidadeQuery] = useState(storedCidade);
-  const [cidadesDropdown, setCidadesDropdown] = useState<string[]>([]);
 
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -66,25 +52,6 @@ export default function Etapa1() {
     getVeiculoByPlaca(placaWatch).then((v) => { if (mounted) setVeiculo(v); });
     return () => { mounted = false; };
   }, [placaWatch]);
-
-  const onCidadeChange = (text: string) => {
-    setCidadeQuery(text);
-    setValue('cidade', text);
-    if (text.length >= 2) {
-      setCidadesDropdown(
-        CIDADES.filter((c) => c.toLowerCase().includes(text.toLowerCase())).slice(0, 5)
-      );
-    } else {
-      setCidadesDropdown([]);
-    }
-  };
-
-  const onCidadeSelect = (c: string) => {
-    setCidadeQuery(c);
-    setValue('cidade', c);
-    setCidade(c);
-    setCidadesDropdown([]);
-  };
 
   const onNext = (data: FormData) => {
     setPlaca(data.placa.toUpperCase());
@@ -169,25 +136,19 @@ export default function Etapa1() {
 
           {/* Cidade autocomplete */}
           <View style={styles.field}>
-            <TextInput
-              label="Cidade do atendimento"
-              mode="outlined"
-              value={cidadeQuery}
-              onChangeText={onCidadeChange}
-              error={!!errors.cidade}
-              placeholder="Digite 2 letras para buscar…"
+            <Controller
+              control={control}
+              name="cidade"
+              render={({ field: { value, onChange } }) => (
+                <CidadeAutocomplete
+                  label="Cidade do atendimento"
+                  value={value}
+                  onChange={(c) => { onChange(c); setCidade(c); }}
+                  error={!!errors.cidade}
+                  errorMessage={errors.cidade?.message}
+                />
+              )}
             />
-            {errors.cidade && <Text style={styles.err}>{errors.cidade.message}</Text>}
-            {cidadesDropdown.length > 0 && (
-              <Surface style={styles.dropdown} elevation={3}>
-                {cidadesDropdown.map((c) => (
-                  <TouchableOpacity key={c} style={styles.dropdownItem} onPress={() => onCidadeSelect(c)}>
-                    <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-                    <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-              </Surface>
-            )}
           </View>
 
           <Button
@@ -231,22 +192,6 @@ const styles = StyleSheet.create({
   veiculoText: { color: Colors.primary, fontSize: 13, fontWeight: '500' },
   veiculoWarn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   veiculoWarnText: { color: '#D97706', fontSize: 12 },
-  dropdown: {
-    borderRadius: 8,
-    marginTop: 4,
-    backgroundColor: Colors.card,
-    overflow: 'hidden',
-    zIndex: 10,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
   btn: { marginTop: 24, borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
 });

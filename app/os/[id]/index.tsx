@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
@@ -219,8 +220,8 @@ export default function OSDetailScreen() {
             </View>
           </View>
 
-          {/* Gestor responsável — visível apenas para o condutor */}
-          {os.gestorId && currentUser?.perfil === 'condutor' && (
+          {/* Gestor responsável */}
+          {os.gestorId && (
             <View style={[styles.condutorRow, { marginTop: 2 }]}>
               {gestorPerfil?.photoURL ? (
                 <Image
@@ -302,6 +303,18 @@ export default function OSDetailScreen() {
             <InfoRow icon="location-outline" label="Endereço" value={`${fornecedor.endereco} · ${fornecedor.cidade}`} />
             <InfoRow icon="time-outline" label="Horário" value={fornecedor.horario} />
             <InfoRow icon="person-outline" label="Responsável" value={`${fornecedor.responsavel} · ${fornecedor.telefone}`} />
+            {fornecedor.googleMapsUrl ? (
+              <TouchableOpacity
+                style={styles.mapsBtn}
+                onPress={() => Linking.openURL(fornecedor.googleMapsUrl!)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="map-outline" size={15} color={Colors.primary} />
+                <Text variant="labelMedium" style={{ color: Colors.primary, fontWeight: '600' }}>
+                  Ver no Google Maps
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </Surface>
         )}
 
@@ -446,4 +459,5 @@ const styles = StyleSheet.create({
   noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
+  mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
 });

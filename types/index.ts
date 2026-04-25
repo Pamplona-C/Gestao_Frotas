@@ -56,6 +56,7 @@ export interface Fornecedor {
   horario: string;
   responsavel: string;
   telefone: string;
+  googleMapsUrl?: string;
 }
 
 export type OSStatus =

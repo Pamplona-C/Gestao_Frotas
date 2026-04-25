@@ -33,34 +33,28 @@ export default function GerenciarOSScreen() {
 
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [todos, setTodos] = useState<Fornecedor[]>([]);
-  const [fornecedoresFiltrados, setFornecedoresFiltrados] = useState<Fornecedor[]>([]);
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<OSStatus>('nova');
+  const [selectedStatus, setSelectedStatus] = useState<OSStatus | null>(null);
   const [nota, setNota] = useState('');
   const [snack, setSnack] = useState(false);
 
+  // Derivado — recalcula automaticamente quando os ou todos mudam
+  const cidadeOS = os?.cidade?.toLowerCase() ?? '';
+  const fornecedoresFiltrados = cidadeOS
+    ? todos.filter((f) => f.cidade.toLowerCase() === cidadeOS)
+    : [];
+
   useFocusEffect(
     useCallback(() => {
-      let fornecedoresCache: typeof todos = [];
-
       const unsubOS = subscribeToOSById(id!, (data) => {
         if (!data) return;
         setOS(data);
         setSelectedFornecedor((prev) => prev ?? data.fornecedorId ?? null);
         setSelectedStatus((prev) => prev ?? data.status);
         setNota((prev) => prev || (data.notaInterna ?? ''));
-        if (data.cidade) {
-          const estado = data.cidade.split(' - ')[1]?.toLowerCase() ?? '';
-          setFornecedoresFiltrados(
-            fornecedoresCache.filter((f) => f.cidade.toLowerCase().includes(estado))
-          );
-        } else {
-          setFornecedoresFiltrados(fornecedoresCache);
-        }
       });
 
       const unsubForn = subscribeToAllFornecedores((fornecedores) => {
-        fornecedoresCache = fornecedores;
         setTodos(fornecedores);
       });
 
@@ -71,7 +65,7 @@ export default function GerenciarOSScreen() {
   const onSave = async () => {
     if (!os || !currentUser) return;
     await updateOS(os.id, {
-      status:       selectedStatus,
+      status:       selectedStatus ?? os.status,
       fornecedorId: selectedFornecedor ?? undefined,
       notaInterna:  nota || undefined,
       gestorId:     currentUser.uid,
@@ -91,9 +85,8 @@ export default function GerenciarOSScreen() {
     );
   }
 
-  const outrosFornecedores = todos.filter(
-    (f) => !fornecedoresFiltrados.find((ff) => ff.id === f.id)
-  );
+  const semMatchDeCidade = os.cidade != null && fornecedoresFiltrados.length === 0;
+  const listaExibida = semMatchDeCidade ? todos : fornecedoresFiltrados;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -120,7 +113,7 @@ export default function GerenciarOSScreen() {
           <Divider style={{ marginBottom: 10 }} />
           <View style={styles.statusGrid}>
             {STATUS_OPTIONS.map((opt) => {
-              const active = selectedStatus === opt.key;
+              const active = (selectedStatus ?? os.status) === opt.key;
               const { bg, text } = Colors.status[opt.key];
               return (
                 <TouchableOpacity
@@ -154,16 +147,23 @@ export default function GerenciarOSScreen() {
         {/* Fornecedor picker */}
         <Surface style={styles.card} elevation={1}>
           <Text variant="titleSmall" style={styles.cardTitle}>Fornecedor</Text>
-          {os.cidade && (
+          {os.cidade && !semMatchDeCidade && (
             <Text variant="labelSmall" style={styles.cityHint}>
-              Sugeridos para {os.cidade}
+              Fornecedores em {os.cidade}
             </Text>
+          )}
+          {semMatchDeCidade && (
+            <View style={styles.noMatchBanner}>
+              <Ionicons name="warning-outline" size={13} color="#B45309" />
+              <Text variant="labelSmall" style={styles.noMatchText}>
+                Nenhum fornecedor em {os.cidade} · Mostrando todas as cidades
+              </Text>
+            </View>
           )}
           <Divider style={{ marginBottom: 10 }} />
 
-          {[...fornecedoresFiltrados, ...outrosFornecedores].map((f) => {
+          {listaExibida.map((f) => {
             const active = selectedFornecedor === f.id;
-            const isSuggested = fornecedoresFiltrados.find((ff) => ff.id === f.id);
             return (
               <TouchableOpacity
                 key={f.id}
@@ -178,19 +178,12 @@ export default function GerenciarOSScreen() {
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View style={styles.fornNameRow}>
-                    <Text
-                      variant="bodyMedium"
-                      style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
-                    >
-                      {f.nome}
-                    </Text>
-                    {isSuggested && (
-                      <View style={styles.suggestedBadge}>
-                        <Text style={styles.suggestedText}>Próximo</Text>
-                      </View>
-                    )}
-                  </View>
+                  <Text
+                    variant="bodyMedium"
+                    style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
+                  >
+                    {f.nome}
+                  </Text>
                   <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
                     {f.cidade} · {f.horario}
                   </Text>
@@ -313,14 +306,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fornNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  suggestedBadge: {
-    backgroundColor: Colors.accent,
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+  noMatchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 4,
   },
-  suggestedText: { fontSize: 9, color: '#fff', fontWeight: '700' },
+  noMatchText: { color: '#B45309', flex: 1 },
   textAreaWrapper: {
     borderRadius: 8,
     backgroundColor: Colors.background,
