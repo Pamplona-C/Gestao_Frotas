@@ -90,7 +90,7 @@ export default function FornecedoresScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>Fornecedores</Text>
         <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>

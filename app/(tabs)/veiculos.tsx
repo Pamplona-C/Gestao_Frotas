@@ -79,7 +79,7 @@ export default function VeiculosScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>Veículos</Text>
         <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>

@@ -104,7 +104,7 @@ function CondutorHome() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
         data={ordens}
         keyExtractor={(o) => o.id}
@@ -188,7 +188,7 @@ function GestorDashboard() {
   const filtered = filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.gestorHeader}>
         <View>
           <Text variant="titleLarge" style={styles.panelTitle}>Painel de Frotas</Text>
