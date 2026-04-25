@@ -39,9 +39,12 @@ export default function GerenciarOSScreen() {
   const [snack, setSnack] = useState(false);
 
   // Derivado — recalcula automaticamente quando os ou todos mudam
-  const cidadeOS = os?.cidade?.toLowerCase() ?? '';
+  // Remove sufixo " - UF", acentos e caixa — tolera dados legados e IBGE
+  const normCidade = (c: string) =>
+    c.split(' - ')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const cidadeOS = os?.cidade ? normCidade(os.cidade) : '';
   const fornecedoresFiltrados = cidadeOS
-    ? todos.filter((f) => f.cidade.toLowerCase() === cidadeOS)
+    ? todos.filter((f) => normCidade(f.cidade) === cidadeOS)
     : [];
 
   useFocusEffect(
