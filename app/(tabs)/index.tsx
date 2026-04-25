@@ -212,6 +212,7 @@ function GestorDashboard() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 130 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
