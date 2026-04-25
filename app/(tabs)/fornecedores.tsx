@@ -10,7 +10,7 @@ import {
   Surface,
   Divider,
 } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
@@ -33,6 +33,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function FornecedoresScreen() {
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [busca, setBusca] = useState('');
   const [modal, setModal] = useState(false);
@@ -139,7 +140,7 @@ export default function FornecedoresScreen() {
         }
       />
 
-      <FAB icon="plus" style={styles.fab} onPress={() => setModal(true)} />
+      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={() => setModal(true)} />
 
       <Portal>
         <Modal
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: Colors.card },
   list: { paddingHorizontal: 20, paddingBottom: 100 },
   empty: { alignItems: 'center', paddingVertical: 40 },
-  fab: { position: 'absolute', right: 20, bottom: 88, backgroundColor: Colors.primary },
+  fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card, gap: 6 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {

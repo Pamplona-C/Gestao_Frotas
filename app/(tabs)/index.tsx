@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, FAB, Surface } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth.store';
@@ -30,6 +30,7 @@ function CondutorHome() {
   const { currentUser } = useAuthStore();
   const router = useRouter();
   const online = useConectividade();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -140,7 +141,7 @@ function CondutorHome() {
 
       <FAB
         icon={online ? 'plus' : 'cloud-off-outline'}
-        style={[styles.fab, !online && styles.fabOffline]}
+        style={[styles.fab, { bottom: bottomInset + 80 }, !online && styles.fabOffline]}
         onPress={() => router.push('/nova-os/etapa-1')}
         label="Nova OS"
       />
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: 20, paddingBottom: 100, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
-  fab: { position: 'absolute', right: 20, bottom: 88, backgroundColor: Colors.primary },
+  fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   // Gestor
   gestorHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

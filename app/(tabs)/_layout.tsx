@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth.store';
 import { Colors } from '../../constants/colors';
 import { HapticTab } from '../../components/haptic-tab';
@@ -13,6 +14,7 @@ export default function TabLayout() {
   if (!currentUser) return <Redirect href="/login" />;
 
   const isGestor = currentUser.perfil === 'gestor';
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -24,7 +26,7 @@ export default function TabLayout() {
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
           position: 'absolute',
-          bottom: 28,
+          bottom: bottomInset + 12,
           left: 0,
           right: 0,
           marginHorizontal: 48,
