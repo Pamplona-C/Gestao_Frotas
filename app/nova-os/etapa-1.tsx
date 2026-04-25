@@ -54,6 +54,7 @@ export default function Etapa1() {
   }, [placaWatch]);
 
   const onNext = (data: FormData) => {
+    if (veiculo && !veiculo.ativo) return;
     setPlaca(data.placa.toUpperCase());
     setHodometro(data.hodometro);
     setCidade(data.cidade);
@@ -98,11 +99,18 @@ export default function Etapa1() {
               )}
             />
             {errors.placa && <Text style={styles.err}>{errors.placa.message}</Text>}
-            {veiculo ? (
+            {veiculo && veiculo.ativo ? (
               <Surface style={styles.veiculoInfo} elevation={0}>
                 <Ionicons name="checkmark-circle" size={16} color={Colors.accent} />
                 <Text style={styles.veiculoText}>
                   {veiculo.modelo} · {veiculo.ano} · Frota {veiculo.frota}
+                </Text>
+              </Surface>
+            ) : veiculo && !veiculo.ativo ? (
+              <Surface style={styles.veiculoInativo} elevation={0}>
+                <Ionicons name="ban-outline" size={16} color="#DC2626" />
+                <Text style={styles.veiculoInativoText}>
+                  Veículo inativo — não é possível abrir OS
                 </Text>
               </Surface>
             ) : placaWatch && placaWatch.length >= 7 ? (
@@ -192,6 +200,16 @@ const styles = StyleSheet.create({
   veiculoText: { color: Colors.primary, fontSize: 13, fontWeight: '500' },
   veiculoWarn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   veiculoWarnText: { color: '#D97706', fontSize: 12 },
+  veiculoInativo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+  },
+  veiculoInativoText: { color: '#DC2626', fontSize: 13, fontWeight: '500' },
   btn: { marginTop: 24, borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
 });

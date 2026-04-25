@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import {
   Text,
   TextInput,
@@ -18,7 +18,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Veiculo } from '../../types';
-import { subscribeToAllVeiculos, createVeiculo } from '../../services/veiculo.service';
+import { subscribeToAllVeiculos, createVeiculo, updateVeiculo, deleteVeiculo } from '../../services/veiculo.service';
 import { Colors } from '../../constants/colors';
 
 const schema = z.object({
@@ -37,6 +37,7 @@ export default function VeiculosScreen() {
   const [modal, setModal] = useState(false);
   const [ativo, setAtivo] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [editando, setEditando] = useState<Veiculo | null>(null);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -64,19 +65,59 @@ export default function VeiculosScreen() {
       v.frota.includes(busca)
   );
 
+  const openNovo = () => {
+    setEditando(null);
+    reset({ placa: '', frota: '', modelo: '', ano: '', departamento: '' });
+    setAtivo(true);
+    setModal(true);
+  };
+
+  const openEditar = (v: Veiculo) => {
+    setEditando(v);
+    reset({
+      placa: v.placa,
+      frota: v.frota,
+      modelo: v.modelo,
+      ano: String(v.ano),
+      departamento: v.departamento,
+    });
+    setAtivo(v.ativo);
+    setModal(true);
+  };
+
   const onSave = async (data: FormData) => {
-    await createVeiculo({
+    const payload = {
       placa: data.placa.toUpperCase(),
       frota: data.frota,
       modelo: data.modelo,
       ano: parseInt(data.ano),
       departamento: data.departamento,
       ativo,
-    });
-    // onSnapshot já vai atualizar a lista automaticamente
+    };
+    if (editando) {
+      await updateVeiculo(editando.id, payload);
+    } else {
+      await createVeiculo(payload);
+    }
     setModal(false);
     reset();
     setAtivo(true);
+    setEditando(null);
+  };
+
+  const onDelete = (v: Veiculo) => {
+    Alert.alert(
+      'Excluir veículo',
+      `Deseja excluir ${v.placa} — ${v.modelo}? Esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => deleteVeiculo(v.id),
+        },
+      ]
+    );
   };
 
   return (
@@ -103,7 +144,13 @@ export default function VeiculosScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(v) => v.id}
-        renderItem={({ item }) => <VeiculoCard veiculo={item} />}
+        renderItem={({ item }) => (
+          <VeiculoCard
+            veiculo={item}
+            onEdit={() => openEditar(item)}
+            onDelete={() => onDelete(item)}
+          />
+        )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -121,7 +168,7 @@ export default function VeiculosScreen() {
         }
       />
 
-      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={() => setModal(true)} />
+      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
 
       <Portal>
         <Modal
@@ -129,7 +176,9 @@ export default function VeiculosScreen() {
           onDismiss={() => setModal(false)}
           contentContainerStyle={styles.modalContainer}
         >
-          <Text variant="titleMedium" style={styles.modalTitle}>Novo veículo</Text>
+          <Text variant="titleMedium" style={styles.modalTitle}>
+            {editando ? 'Editar veículo' : 'Novo veículo'}
+          </Text>
           <Divider style={{ marginBottom: 12 }} />
 
           {(['placa', 'frota', 'modelo', 'ano', 'departamento'] as const).map((field) => (
@@ -181,7 +230,15 @@ export default function VeiculosScreen() {
   );
 }
 
-function VeiculoCard({ veiculo }: { veiculo: Veiculo }) {
+function VeiculoCard({
+  veiculo,
+  onEdit,
+  onDelete,
+}: {
+  veiculo: Veiculo;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <Surface style={styles.card} elevation={1}>
       <View style={styles.cardHeader}>
@@ -195,6 +252,13 @@ function VeiculoCard({ veiculo }: { veiculo: Veiculo }) {
         <Text style={[styles.statusLabel, { color: veiculo.ativo ? Colors.accent : Colors.textHint }]}>
           {veiculo.ativo ? 'Ativo' : 'Inativo'}
         </Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={onEdit} style={styles.actionBtn} hitSlop={8}>
+          <Ionicons name="pencil-outline" size={17} color={Colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} style={styles.actionBtn} hitSlop={8}>
+          <Ionicons name="trash-outline" size={17} color="#DC2626" />
+        </TouchableOpacity>
       </View>
       <Text variant="bodyMedium" style={styles.modelo}>{veiculo.modelo} · {veiculo.ano}</Text>
       <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>{veiculo.departamento}</Text>
@@ -208,7 +272,7 @@ const styles = StyleSheet.create({
   title: { fontWeight: '700', color: Colors.textPrimary },
   searchBar: { paddingHorizontal: 20, marginBottom: 12 },
   input: { backgroundColor: Colors.card },
-  list: { paddingHorizontal: 20, paddingBottom: 100 },
+  list: { paddingHorizontal: 20, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   card: {
@@ -237,6 +301,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 4 },
   statusLabel: { fontSize: 12, fontWeight: '600' },
   modelo: { color: Colors.textPrimary, fontWeight: '500' },
+  actionBtn: { padding: 4 },
   // Modal
   modalContainer: {
     margin: 20,

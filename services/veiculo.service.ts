@@ -3,6 +3,8 @@ import {
   getDocs,
   doc,
   addDoc,
+  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -59,4 +61,12 @@ export async function getVeiculoByPlaca(placa: string): Promise<Veiculo | null> 
 export async function createVeiculo(v: Omit<Veiculo, 'id'>): Promise<Veiculo> {
   const ref = await addDoc(collection(db, 'veiculos'), v);
   return { ...v, id: ref.id };
+}
+
+export async function updateVeiculo(id: string, updates: Partial<Omit<Veiculo, 'id'>>): Promise<void> {
+  await updateDoc(doc(db, 'veiculos', id), updates);
+}
+
+export async function deleteVeiculo(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'veiculos', id));
 }
