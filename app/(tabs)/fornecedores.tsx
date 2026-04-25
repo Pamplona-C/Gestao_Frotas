@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, SectionList, ScrollView, RefreshControl, Linking, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, SectionList, ScrollView, RefreshControl, Linking, TouchableOpacity, Alert } from 'react-native';
 import {
   Text,
   TextInput,
@@ -17,7 +17,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Fornecedor } from '../../types';
-import { subscribeToAllFornecedores, createFornecedor } from '../../services/fornecedor.service';
+import { subscribeToAllFornecedores, createFornecedor, updateFornecedor, deleteFornecedor } from '../../services/fornecedor.service';
 import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
 import { Colors } from '../../constants/colors';
 
@@ -38,8 +38,9 @@ export default function FornecedoresScreen() {
   const [busca, setBusca] = useState('');
   const [modal, setModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [editando, setEditando] = useState<Fornecedor | null>(null);
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
@@ -72,13 +73,50 @@ export default function FornecedoresScreen() {
     .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
     .map(([title, data]) => ({ title, data }));
 
+  const openNovo = () => {
+    setEditando(null);
+    reset({ nome: '', cidade: '', endereco: '', horario: '', responsavel: '', telefone: '', googleMapsUrl: '' });
+    setModal(true);
+  };
+
+  const openEditar = (f: Fornecedor) => {
+    setEditando(f);
+    reset({
+      nome: f.nome,
+      cidade: f.cidade,
+      endereco: f.endereco,
+      horario: f.horario,
+      responsavel: f.responsavel,
+      telefone: f.telefone,
+      googleMapsUrl: f.googleMapsUrl ?? '',
+    });
+    setModal(true);
+  };
+
   const onSave = async (data: FormData) => {
     const payload = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined && v !== '')
     ) as Omit<typeof data, 'id'>;
-    await createFornecedor(payload);
+
+    if (editando) {
+      await updateFornecedor(editando.id, payload);
+    } else {
+      await createFornecedor(payload);
+    }
     setModal(false);
     reset();
+    setEditando(null);
+  };
+
+  const onDelete = (f: Fornecedor) => {
+    Alert.alert(
+      'Excluir fornecedor',
+      `Deseja excluir ${f.nome}? Esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: () => deleteFornecedor(f.id) },
+      ]
+    );
   };
 
   const fields: { key: Exclude<keyof FormData, 'cidade'>; label: string; keyboard?: any }[] = [
@@ -114,7 +152,13 @@ export default function FornecedoresScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(f) => f.id}
-        renderItem={({ item }) => <FornecedorCard fornecedor={item} />}
+        renderItem={({ item }) => (
+          <FornecedorCard
+            fornecedor={item}
+            onEdit={() => openEditar(item)}
+            onDelete={() => onDelete(item)}
+          />
+        )}
         renderSectionHeader={({ section: { title } }) => (
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={12} color={Colors.primary} />
@@ -140,7 +184,7 @@ export default function FornecedoresScreen() {
         }
       />
 
-      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={() => setModal(true)} />
+      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
 
       <Portal>
         <Modal
@@ -148,11 +192,12 @@ export default function FornecedoresScreen() {
           onDismiss={() => setModal(false)}
           contentContainerStyle={styles.modalContainer}
         >
-          <Text variant="titleMedium" style={styles.modalTitle}>Novo fornecedor</Text>
+          <Text variant="titleMedium" style={styles.modalTitle}>
+            {editando ? 'Editar fornecedor' : 'Novo fornecedor'}
+          </Text>
           <Divider style={{ marginBottom: 12 }} />
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {/* Campo cidade com autocomplete IBGE */}
             <View style={{ marginBottom: 8 }}>
               <Controller
                 control={control}
@@ -208,7 +253,15 @@ export default function FornecedoresScreen() {
   );
 }
 
-function FornecedorCard({ fornecedor }: { fornecedor: Fornecedor }) {
+function FornecedorCard({
+  fornecedor,
+  onEdit,
+  onDelete,
+}: {
+  fornecedor: Fornecedor;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <Surface style={styles.card} elevation={1}>
       <View style={styles.cardHeader}>
@@ -223,6 +276,12 @@ function FornecedorCard({ fornecedor }: { fornecedor: Fornecedor }) {
             {fornecedor.cidade}
           </Text>
         </View>
+        <TouchableOpacity onPress={onEdit} style={styles.actionBtn} hitSlop={8}>
+          <Ionicons name="pencil-outline" size={17} color={Colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} style={styles.actionBtn} hitSlop={8}>
+          <Ionicons name="trash-outline" size={17} color="#DC2626" />
+        </TouchableOpacity>
       </View>
       <View style={styles.infoRow}>
         <Ionicons name="location-outline" size={13} color={Colors.textHint} />
@@ -260,7 +319,7 @@ const styles = StyleSheet.create({
   title: { fontWeight: '700', color: Colors.textPrimary },
   searchBar: { paddingHorizontal: 20, marginBottom: 12 },
   input: { backgroundColor: Colors.card },
-  list: { paddingHorizontal: 20, paddingBottom: 100 },
+  list: { paddingHorizontal: 20, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card, gap: 6 },
@@ -275,6 +334,7 @@ const styles = StyleSheet.create({
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  actionBtn: { padding: 4 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',

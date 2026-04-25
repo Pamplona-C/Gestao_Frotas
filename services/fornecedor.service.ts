@@ -4,6 +4,8 @@ import {
   getDoc,
   doc,
   addDoc,
+  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -48,4 +50,13 @@ export async function getFornecedorById(id: string): Promise<Fornecedor | null> 
 export async function createFornecedor(f: Omit<Fornecedor, 'id'>): Promise<Fornecedor> {
   const ref = await addDoc(collection(db, 'fornecedores'), f);
   return { ...f, id: ref.id };
+}
+
+export async function updateFornecedor(id: string, updates: Partial<Omit<Fornecedor, 'id'>>): Promise<void> {
+  const data = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined));
+  await updateDoc(doc(db, 'fornecedores', id), data);
+}
+
+export async function deleteFornecedor(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'fornecedores', id));
 }
