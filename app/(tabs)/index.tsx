@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: 20, paddingBottom: 100, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
-  fab: { position: 'absolute', right: 20, bottom: 20, backgroundColor: Colors.primary },
+  fab: { position: 'absolute', right: 20, bottom: 88, backgroundColor: Colors.primary },
   // Gestor
   gestorHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

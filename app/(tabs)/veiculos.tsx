@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: Colors.card },
   list: { paddingHorizontal: 20, paddingBottom: 100 },
   empty: { alignItems: 'center', paddingVertical: 40 },
-  fab: { position: 'absolute', right: 20, bottom: 20, backgroundColor: Colors.primary },
+  fab: { position: 'absolute', right: 20, bottom: 88, backgroundColor: Colors.primary },
   card: {
     borderRadius: 12,
     padding: 14,
