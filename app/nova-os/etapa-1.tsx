@@ -49,8 +49,10 @@ export default function Etapa1() {
   useEffect(() => {
     if (!placaWatch || placaWatch.length < 7) { setVeiculo(null); return; }
     let mounted = true;
-    getVeiculoByPlaca(placaWatch).then((v) => { if (mounted) setVeiculo(v); });
-    return () => { mounted = false; };
+    const timer = setTimeout(() => {
+      getVeiculoByPlaca(placaWatch).then((v) => { if (mounted) setVeiculo(v); });
+    }, 400);
+    return () => { mounted = false; clearTimeout(timer); };
   }, [placaWatch]);
 
   const onNext = (data: FormData) => {
