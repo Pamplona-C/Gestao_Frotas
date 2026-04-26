@@ -54,6 +54,7 @@ async function getGestorTokenEntries(): Promise<TokenEntry[]> {
   const snap = await db
     .collection('usuarios')
     .where('perfil', '==', 'gestor')
+    .select('fcmToken')
     .get();
 
   return snap.docs
