@@ -6,23 +6,6 @@ import {
 } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
-const MAX_DIMENSION = 1280;
-const UPLOAD_QUALITY = 0.65;
-
-async function compressImage(localUri: string): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { manipulateAsync, SaveFormat } = require('expo-image-manipulator');
-    const result = await manipulateAsync(
-      localUri,
-      [{ resize: { width: MAX_DIMENSION } }],
-      { compress: UPLOAD_QUALITY, format: SaveFormat.JPEG },
-    );
-    return result.uri;
-  } catch {
-    return localUri;
-  }
-}
 
 /**
  * Faz upload de uma única foto de OS para Firebase Storage.
@@ -37,8 +20,7 @@ async function uploadFotoOSUnica(
   timestamp: number,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const compressed = await compressImage(localUri);
-  const response = await fetch(compressed);
+  const response = await fetch(localUri);
   const blob = await response.blob();
 
   const path = `os-fotos/${osId}/${timestamp}_${index}`;
@@ -127,8 +109,7 @@ export async function uploadFotoPerfil(
   uid: string,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const compressed = await compressImage(localUri);
-  const response = await fetch(compressed);
+  const response = await fetch(localUri);
   const blob = await response.blob();
 
   const storageRef = ref(storage, `perfil-fotos/${uid}`);

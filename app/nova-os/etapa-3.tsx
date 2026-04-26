@@ -46,7 +46,7 @@ export default function Etapa3() {
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
       selectionLimit: remaining,
-      quality: 0.7,
+      quality: 0.6,
     });
 
     if (!result.canceled && result.assets.length > 0) {
