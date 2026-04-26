@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8,
   },
   panelTitle: { fontWeight: '700', color: Colors.textPrimary },
-  metricsGrid: { paddingHorizontal: 20, gap: 12, marginBottom: 16 },
+  metricsGrid: { paddingHorizontal: 20, paddingTop: 8, gap: 12, marginBottom: 16 },
   metricsRow: { flexDirection: 'row', gap: 12 },
   filterRow: { paddingHorizontal: 16, gap: 8, marginBottom: 16 },
   filterTab: {
