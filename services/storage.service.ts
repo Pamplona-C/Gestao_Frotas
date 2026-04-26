@@ -4,21 +4,24 @@ import {
   getDownloadURL,
   deleteObject,
 } from 'firebase/storage';
-import { isExpoGo } from './notification.service';
 import { storage } from '../lib/firebase';
+
 const MAX_DIMENSION = 1280;
 const UPLOAD_QUALITY = 0.65;
 
 async function compressImage(localUri: string): Promise<string> {
-  if (isExpoGo) return localUri;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { manipulateAsync, SaveFormat } = require('expo-image-manipulator');
-  const result = await manipulateAsync(
-    localUri,
-    [{ resize: { width: MAX_DIMENSION } }],
-    { compress: UPLOAD_QUALITY, format: SaveFormat.JPEG },
-  );
-  return result.uri;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { manipulateAsync, SaveFormat } = require('expo-image-manipulator');
+    const result = await manipulateAsync(
+      localUri,
+      [{ resize: { width: MAX_DIMENSION } }],
+      { compress: UPLOAD_QUALITY, format: SaveFormat.JPEG },
+    );
+    return result.uri;
+  } catch {
+    return localUri;
+  }
 }
 
 /**
