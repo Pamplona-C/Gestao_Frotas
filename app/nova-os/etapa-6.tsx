@@ -39,8 +39,10 @@ export default function Etapa6() {
         const novaOS = await createOS({
           placa,
           frota: veiculo?.frota ?? '—',
-          condutorId: currentUser?.uid ?? '',
-          condutorNome: currentUser?.nome ?? '',
+          condutorId:            currentUser?.uid ?? '',
+          condutorNome:          currentUser?.nome ?? '',
+          condutorPhotoURL:      currentUser?.photoURL ?? null,
+          condutorDepartamento:  currentUser?.departamento,
           hodometro: parseInt(store.hodometro) || 0,
           tipo: store.tipo as any,
           servicos: store.servicosSelecionados,

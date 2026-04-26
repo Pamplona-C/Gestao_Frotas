@@ -87,6 +87,10 @@ export interface OrdemServico {
   criadoEm: string;
   notaInterna?: string;
   observacoes?: string;
-  gestorId?:   string;
-  gestorNome?: string;
+  condutorPhotoURL?:    string | null;
+  condutorDepartamento?: string;
+  gestorId?:            string;
+  gestorNome?:          string;
+  gestorPhotoURL?:      string | null;
+  gestorDepartamento?:  string;
 }

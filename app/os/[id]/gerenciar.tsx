@@ -68,11 +68,13 @@ export default function GerenciarOSScreen() {
   const onSave = async () => {
     if (!os || !currentUser) return;
     await updateOS(os.id, {
-      status:       selectedStatus ?? os.status,
-      fornecedorId: selectedFornecedor ?? undefined,
-      notaInterna:  nota || undefined,
-      gestorId:     currentUser.uid,
-      gestorNome:   currentUser.nome,
+      status:             selectedStatus ?? os.status,
+      fornecedorId:       selectedFornecedor ?? undefined,
+      notaInterna:        nota || undefined,
+      gestorId:           currentUser.uid,
+      gestorNome:         currentUser.nome,
+      gestorPhotoURL:     currentUser.photoURL ?? null,
+      gestorDepartamento: currentUser.departamento,
     });
     // Notificação disparada automaticamente pela Cloud Function (trigger onUpdate)
     setSnack(true);

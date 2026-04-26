@@ -20,9 +20,8 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
 import { subscribeToOSById } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
-import { getUserById } from '../../../services/auth.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { OrdemServico, Fornecedor, UserProfile } from '../../../types';
+import { OrdemServico, Fornecedor } from '../../../types';
 import { Colors } from '../../../constants/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -90,8 +89,6 @@ export default function OSDetailScreen() {
   const { currentUser } = useAuthStore();
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
-  const [condutorPerfil, setCondutorPerfil] = useState<UserProfile | null>(null);
-  const [gestorPerfil, setGestorPerfil] = useState<UserProfile | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,18 +102,6 @@ export default function OSDetailScreen() {
           });
         } else {
           setFornecedor(null);
-        }
-        if (data?.condutorId) {
-          getUserById(data.condutorId).then((u) => {
-            if (mounted) setCondutorPerfil(u);
-          });
-        }
-        if (data?.gestorId) {
-          getUserById(data.gestorId).then((u) => {
-            if (mounted) setGestorPerfil(u);
-          });
-        } else {
-          setGestorPerfil(null);
         }
       });
       return () => {
@@ -147,7 +132,7 @@ export default function OSDetailScreen() {
     .map((n) => n[0])
     .join('');
 
-  const gestorNome = gestorPerfil?.nome ?? os.gestorNome ?? '';
+  const gestorNome = os.gestorNome ?? '';
   const gestorInitials = gestorNome
     .split(' ')
     .slice(0, 2)
@@ -195,9 +180,9 @@ export default function OSDetailScreen() {
 
           {/* Condutor com foto */}
           <View style={styles.condutorRow}>
-            {condutorPerfil?.photoURL ? (
+            {os.condutorPhotoURL ? (
               <Image
-                source={{ uri: condutorPerfil.photoURL }}
+                source={{ uri: os.condutorPhotoURL }}
                 style={styles.condutorAvatar}
                 cachePolicy="memory-disk"
                 transition={200}
@@ -212,9 +197,9 @@ export default function OSDetailScreen() {
               <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
                 {os.condutorNome}
               </Text>
-              {condutorPerfil?.departamento ? (
+              {os.condutorDepartamento ? (
                 <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                  {condutorPerfil.departamento}
+                  {os.condutorDepartamento}
                 </Text>
               ) : null}
             </View>
@@ -223,9 +208,9 @@ export default function OSDetailScreen() {
           {/* Gestor responsável */}
           {os.gestorId && (
             <View style={[styles.condutorRow, { marginTop: 2 }]}>
-              {gestorPerfil?.photoURL ? (
+              {os.gestorPhotoURL ? (
                 <Image
-                  source={{ uri: gestorPerfil.photoURL }}
+                  source={{ uri: os.gestorPhotoURL }}
                   style={[styles.condutorAvatar, { borderColor: Colors.accent }]}
                   cachePolicy="memory-disk"
                   transition={200}
@@ -240,9 +225,9 @@ export default function OSDetailScreen() {
                 <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
                   {gestorNome}
                 </Text>
-                {gestorPerfil?.departamento ? (
+                {os.gestorDepartamento ? (
                   <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                    {gestorPerfil.departamento}
+                    {os.gestorDepartamento}
                   </Text>
                 ) : null}
               </View>
