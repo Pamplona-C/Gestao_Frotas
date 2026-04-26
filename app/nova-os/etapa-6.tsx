@@ -12,7 +12,7 @@ import { getVeiculoByPlaca } from '../../services/veiculo.service';
 import { uploadFotosOS } from '../../services/storage.service';
 import { Colors } from '../../constants/colors';
 
-type Fase = 'enviando' | 'concluido';
+type Fase = 'enviando' | 'concluido' | 'concluido_sem_fotos';
 
 export default function Etapa6() {
   const router = useRouter();
@@ -53,14 +53,19 @@ export default function Etapa6() {
           observacoes: store.observacoes || undefined,
         });
 
+        let fotosFalharam = false;
         if (fotosUris.length > 0) {
-          const urls = await uploadFotosOS(fotosUris, novaOS.id, (pct) => setProgresso(pct));
-          await updateOS(novaOS.id, { fotos: urls });
+          try {
+            const urls = await uploadFotosOS(fotosUris, novaOS.id, (pct) => setProgresso(pct));
+            await updateOS(novaOS.id, { fotos: urls });
+          } catch {
+            fotosFalharam = true;
+          }
         }
 
         setOsId(novaOS.id);
         store.reset();
-        setFase('concluido');
+        setFase(fotosFalharam ? 'concluido_sem_fotos' : 'concluido');
 
         Animated.spring(scaleAnim, {
           toValue: 1,
@@ -125,6 +130,35 @@ export default function Etapa6() {
               </Text>
             </View>
           )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (fase === 'concluido_sem_fotos') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StepperHeader currentStep={6} />
+        <View style={styles.container}>
+          <Ionicons name="checkmark-circle" size={96} color={Colors.primary} />
+          <Text variant="headlineMedium" style={styles.title}>OS registrada!</Text>
+          <Text variant="bodyMedium" style={styles.subtitle}>
+            A OS foi criada com sucesso, mas o envio das fotos falhou. Você pode adicioná-las
+            posteriormente pela tela de detalhes da OS.
+          </Text>
+          <Surface style={styles.osCard} elevation={1}>
+            <Text variant="labelMedium" style={styles.osLabel}>Número da OS</Text>
+            <Text variant="headlineSmall" style={styles.osNumber}>{osId.toUpperCase()}</Text>
+          </Surface>
+          <Button
+            mode="contained"
+            style={styles.btn}
+            contentStyle={styles.btnContent}
+            icon="home"
+            onPress={() => router.replace('/(tabs)')}
+          >
+            Ir para início
+          </Button>
         </View>
       </SafeAreaView>
     );
