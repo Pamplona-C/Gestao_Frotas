@@ -89,7 +89,13 @@ async function sendMulticast(
     });
 
     if (stale.length > 0) {
-      await Promise.all(stale.map(removeStaleToken));
+      const batch = db.batch();
+      stale.forEach((uid) =>
+        batch.update(db.collection('usuarios').doc(uid), {
+          fcmToken: admin.firestore.FieldValue.delete(),
+        }),
+      );
+      await batch.commit();
     }
   }
 }
