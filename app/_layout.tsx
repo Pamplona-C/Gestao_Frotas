@@ -124,6 +124,7 @@ export default function RootLayout() {
             <Stack.Screen name="nova-os" />
             <Stack.Screen name="os" />
             <Stack.Screen name="novo-usuario" />
+            <Stack.Screen name="perfil" />
           </Stack>
           <StatusBar style="auto" />
         </PaperProvider>
