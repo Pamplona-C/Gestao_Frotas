@@ -13,19 +13,32 @@ type Step = {
   done: boolean;
 };
 
+function fmtDate(iso: string) {
+  return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+}
+
 function getSteps(os: OrdemServico): Step[] {
   const status = os.status;
+  const history = os.statusHistory ?? [];
+
+  // Encontra o changedAt de um status específico no histórico
+  const entryDate = (s: OSStatus) => {
+    const entry = history.find((e) => e.status === s);
+    return entry ? fmtDate(entry.changedAt) : undefined;
+  };
+
   const isDiag = ['em_diagnostico', 'orcamento_aprovado', 'concluida'].includes(status);
   const isOrc = ['orcamento_aprovado', 'concluida'].includes(status);
   const isConcluida = status === 'concluida';
 
-  const criadoEm = format(parseISO(os.criadoEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  // Fallback para OS sem histórico: usa criadoEm no primeiro passo
+  const aberturaLabel = entryDate('nova') ?? fmtDate(os.criadoEm);
 
   return [
-    { label: 'Abertura da OS', sublabel: criadoEm, done: true },
-    { label: 'Em diagnóstico', done: isDiag },
-    { label: 'Orçamento aprovado', sublabel: os.notaInterna, done: isOrc },
-    { label: 'Serviço concluído', done: isConcluida },
+    { label: 'Abertura da OS', sublabel: aberturaLabel, done: true },
+    { label: 'Em diagnóstico', sublabel: isDiag ? entryDate('em_diagnostico') : undefined, done: isDiag },
+    { label: 'Orçamento aprovado', sublabel: isOrc ? (entryDate('orcamento_aprovado') ?? os.notaInterna) : os.notaInterna, done: isOrc },
+    { label: 'Serviço concluído', sublabel: isConcluida ? entryDate('concluida') : undefined, done: isConcluida },
   ];
 }
 

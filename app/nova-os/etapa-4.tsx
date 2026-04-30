@@ -36,13 +36,19 @@ export default function Etapa4() {
   const [observacoes, setObservacoesLocal] = useState(storedObs);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [dateError, setDateError] = useState(false);
 
   const dateLabel = selectedDate
     ? format(selectedDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     : 'Selecionar data';
 
   const onNext = () => {
-    setDataDesejada(selectedDate ? selectedDate.toISOString() : '');
+    if (!selectedDate) {
+      setDateError(true);
+      return;
+    }
+    setDateError(false);
+    setDataDesejada(selectedDate.toISOString());
     setHorario(horario);
     setObservacoes(observacoes);
     router.push('/nova-os/etapa-5');
@@ -66,6 +72,9 @@ export default function Etapa4() {
         {/* Date picker */}
         <View style={styles.field}>
           <Text variant="labelLarge" style={styles.label}>Data desejada</Text>
+          {dateError && (
+            <Text style={styles.err}>Selecione uma data prevista para continuar</Text>
+          )}
           {Platform.OS === 'web' ? (
             <Surface style={styles.inputSurface} elevation={1}>
               <RNTextInput
@@ -81,14 +90,14 @@ export default function Etapa4() {
             </Surface>
           ) : (
             <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() => setShowDatePicker(true)}
+              style={[styles.pickerButton, dateError && styles.pickerButtonError]}
+              onPress={() => { setShowDatePicker(true); setDateError(false); }}
             >
-              <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+              <Ionicons name="calendar-outline" size={20} color={dateError ? '#DC2626' : Colors.primary} />
               <Text
                 style={[
                   styles.pickerText,
-                  !selectedDate && { color: Colors.textHint },
+                  !selectedDate && { color: dateError ? '#DC2626' : Colors.textHint },
                 ]}
               >
                 {dateLabel}
@@ -193,6 +202,7 @@ const styles = StyleSheet.create({
   sub: { color: Colors.textSecondary, marginBottom: 20 },
   field: { marginBottom: 16 },
   label: { color: Colors.textPrimary, marginBottom: 8, fontWeight: '600' },
+  err: { fontSize: 12, color: '#DC2626', marginBottom: 6 },
   pickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,6 +212,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 14,
+  },
+  pickerButtonError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
   },
   pickerText: { fontSize: 15, color: Colors.textPrimary, flex: 1 },
   inputSurface: {

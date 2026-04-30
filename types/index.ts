@@ -68,6 +68,12 @@ export type OSStatus =
 
 export type OSTipo = 'preventiva' | 'corretiva';
 
+export interface StatusEntry {
+  status: OSStatus;
+  changedAt: string; // ISO string
+  changedBy: string; // condutor na criação, gestor nas demais
+}
+
 export interface OrdemServico {
   id: string;
   placa: string;
@@ -93,4 +99,5 @@ export interface OrdemServico {
   gestorNome?:          string;
   gestorPhotoURL?:      string | null;
   gestorDepartamento?:  string;
+  statusHistory?:       StatusEntry[];
 }

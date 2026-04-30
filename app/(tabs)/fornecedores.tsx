@@ -1,5 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, SectionList, ScrollView, RefreshControl, Linking, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  SectionList,
+  ScrollView,
+  RefreshControl,
+  Linking,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import {
   Text,
   TextInput,
@@ -16,10 +26,20 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { Fornecedor } from '../../types';
-import { subscribeToAllFornecedores, createFornecedor, updateFornecedor, deleteFornecedor } from '../../services/fornecedor.service';
+import {
+  getFornecedoresPaginados,
+  getAllFornecedores,
+  createFornecedor,
+  updateFornecedor,
+  deleteFornecedor,
+} from '../../services/fornecedor.service';
+import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
 import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
 import { Colors } from '../../constants/colors';
+
+const CACHE_KEY = 'cache:fornecedores:p1';
 
 const schema = z.object({
   nome: z.string().min(2, 'Obrigatório'),
@@ -34,38 +54,110 @@ type FormData = z.infer<typeof schema>;
 
 export default function FornecedoresScreen() {
   const { bottom: bottomInset } = useSafeAreaInsets();
+
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  const [busca, setBusca] = useState('');
-  const [modal, setModal] = useState(false);
+  const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [carregando, setCarregando] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [busca, setBusca] = useState('');
+  const buscaRef = useRef('');
+  useEffect(() => { buscaRef.current = busca; }, [busca]);
+
+  const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState<Fornecedor | null>(null);
 
-  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
+  // ── Paginação ────────────────────────────────────────────────────────────
+  const carregarPrimeiraPagina = useCallback(async () => {
+    // 1. Mostra cache imediatamente (se válido)
+    const cached = await cacheGet<Fornecedor[]>(CACHE_KEY);
+    if (cached) {
+      setFornecedores(cached);
+      setCarregando(false);
+    } else {
+      setCarregando(true);
+    }
+
+    // 2. Busca dados frescos do Firestore em background
+    try {
+      const res = await getFornecedoresPaginados();
+      setFornecedores(res.items);
+      setCursor(res.cursor);
+      setHasMore(res.hasMore);
+      cacheSet(CACHE_KEY, res.items);
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const carregarMais = useCallback(async () => {
+    if (!hasMore || carregandoMais || buscaRef.current.trim()) return;
+    setCarregandoMais(true);
+    try {
+      const res = await getFornecedoresPaginados(cursor);
+      setFornecedores((prev) => [...prev, ...res.items]);
+      setCursor(res.cursor);
+      setHasMore(res.hasMore);
+    } finally {
+      setCarregandoMais(false);
+    }
+  }, [hasMore, carregandoMais, cursor]);
+
+  // Foca tela → carrega página 1 (apenas se não há busca ativa)
   useFocusEffect(
     useCallback(() => {
-      const unsub = subscribeToAllFornecedores((data) => {
-        setFornecedores(data);
-        setRefreshing(false);
-      });
-      return unsub;
-    }, [])
+      if (!buscaRef.current.trim()) carregarPrimeiraPagina();
+    }, [carregarPrimeiraPagina])
   );
+
+  // Busca: debounce 350ms; quando vazia, volta ao modo paginado
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+
+    const trimmed = busca.trim();
+    if (!trimmed) {
+      carregarPrimeiraPagina();
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCarregando(true);
+      try {
+        const todos = await getAllFornecedores();
+        const lower = trimmed.toLowerCase();
+        setFornecedores(
+          todos.filter(
+            (f) =>
+              f.nome.toLowerCase().includes(lower) ||
+              f.cidade.toLowerCase().includes(lower),
+          )
+        );
+        setCursor(null);
+        setHasMore(false);
+      } finally {
+        setCarregando(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
-  }, []);
+    setBusca('');
+    carregarPrimeiraPagina();
+  }, [carregarPrimeiraPagina]);
 
-  const filtered = fornecedores.filter(
-    (f) =>
-      f.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      f.cidade.toLowerCase().includes(busca.toLowerCase())
-  );
-
-  const grouped = filtered.reduce<Record<string, Fornecedor[]>>((acc, f) => {
+  // ── Agrupamento por cidade ────────────────────────────────────────────────
+  const grouped = fornecedores.reduce<Record<string, Fornecedor[]>>((acc, f) => {
     (acc[f.cidade] ??= []).push(f);
     return acc;
   }, {});
@@ -73,6 +165,7 @@ export default function FornecedoresScreen() {
     .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
     .map(([title, data]) => ({ title, data }));
 
+  // ── CRUD ─────────────────────────────────────────────────────────────────
   const openNovo = () => {
     setEditando(null);
     reset({ nome: '', cidade: '', endereco: '', horario: '', responsavel: '', telefone: '', googleMapsUrl: '' });
@@ -106,6 +199,9 @@ export default function FornecedoresScreen() {
     setModal(false);
     reset();
     setEditando(null);
+    cacheInvalidate(CACHE_KEY);
+    setBusca('');
+    carregarPrimeiraPagina();
   };
 
   const onDelete = (f: Fornecedor) => {
@@ -114,7 +210,15 @@ export default function FornecedoresScreen() {
       `Deseja excluir ${f.nome}? Esta ação não pode ser desfeita.`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: () => deleteFornecedor(f.id) },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteFornecedor(f.id);
+            cacheInvalidate(CACHE_KEY);
+            carregarPrimeiraPagina();
+          },
+        },
       ]
     );
   };
@@ -128,12 +232,13 @@ export default function FornecedoresScreen() {
     { key: 'googleMapsUrl', label: 'Link do Google Maps (opcional)', keyboard: 'url' },
   ];
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>Fornecedores</Text>
         <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
-          {fornecedores.length} cadastrados
+          {fornecedores.length}{hasMore && !busca ? '+' : ''} cadastrados
         </Text>
       </View>
 
@@ -144,6 +249,7 @@ export default function FornecedoresScreen() {
           value={busca}
           onChangeText={setBusca}
           left={<TextInput.Icon icon="magnify" />}
+          right={busca ? <TextInput.Icon icon="close" onPress={() => setBusca('')} /> : undefined}
           style={styles.input}
           dense
         />
@@ -170,17 +276,34 @@ export default function FornecedoresScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
+        onEndReached={carregarMais}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={() =>
+          carregandoMais ? (
+            <ActivityIndicator style={styles.footerLoader} color={Colors.primary} />
+          ) : hasMore && !busca ? (
+            <Text style={styles.footerHint}>Role para carregar mais</Text>
+          ) : null
+        }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            colors={[Colors.primary]} tintColor={Colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="business-outline" size={48} color={Colors.textHint} />
-            <Text variant="bodyMedium" style={{ color: Colors.textHint, marginTop: 8 }}>
-              Nenhum fornecedor encontrado
-            </Text>
-          </View>
+          carregando ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="business-outline" size={48} color={Colors.textHint} />
+              <Text variant="bodyMedium" style={{ color: Colors.textHint, marginTop: 8 }}>
+                Nenhum fornecedor encontrado
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -322,6 +445,8 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
+  footerLoader: { paddingVertical: 16 },
+  footerHint: { textAlign: 'center', color: Colors.textHint, fontSize: 12, paddingVertical: 12 },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card, gap: 6 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {

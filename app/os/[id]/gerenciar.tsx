@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   TextInput as RNTextInput,
 } from 'react-native';
-import { Text, Button, Surface, Divider, Portal, Snackbar } from 'react-native-paper';
+import { Text, Button, Surface, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { OrdemServico, OSStatus, Fornecedor } from '../../../types';
-import { subscribeToOSById, updateOS } from '../../../services/os.service';
+import { subscribeToOSById, updateOS, appendStatusEntry } from '../../../services/os.service';
 import { subscribeToAllFornecedores } from '../../../services/fornecedor.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -36,7 +36,6 @@ export default function GerenciarOSScreen() {
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<OSStatus | null>(null);
   const [nota, setNota] = useState('');
-  const [snack, setSnack] = useState(false);
 
   // Derivado — recalcula automaticamente quando os ou todos mudam
   // Remove sufixo " - UF", acentos e caixa — tolera dados legados e IBGE
@@ -67,17 +66,28 @@ export default function GerenciarOSScreen() {
 
   const onSave = async () => {
     if (!os || !currentUser) return;
-    await updateOS(os.id, {
-      status:             selectedStatus ?? os.status,
-      fornecedorId:       selectedFornecedor ?? undefined,
-      notaInterna:        nota || undefined,
-      gestorId:           currentUser.uid,
-      gestorNome:         currentUser.nome,
-      gestorPhotoURL:     currentUser.photoURL ?? null,
-      gestorDepartamento: currentUser.departamento,
-    });
+    const novoStatus = selectedStatus ?? os.status;
+    const ops: Promise<void>[] = [
+      updateOS(os.id, {
+        status:             novoStatus,
+        fornecedorId:       selectedFornecedor ?? undefined,
+        notaInterna:        nota || undefined,
+        gestorId:           currentUser.uid,
+        gestorNome:         currentUser.nome,
+        gestorPhotoURL:     currentUser.photoURL ?? null,
+        gestorDepartamento: currentUser.departamento,
+      }),
+    ];
+    if (novoStatus !== os.status) {
+      ops.push(appendStatusEntry(os.id, {
+        status:    novoStatus,
+        changedAt: new Date().toISOString(),
+        changedBy: currentUser.nome,
+      }));
+    }
     // Notificação disparada automaticamente pela Cloud Function (trigger onUpdate)
-    setSnack(true);
+    await Promise.all(ops);
+    router.back();
   };
 
   if (!os) {
@@ -229,17 +239,6 @@ export default function GerenciarOSScreen() {
         </Button>
       </ScrollView>
 
-      <Portal>
-        <Snackbar
-          visible={snack}
-          onDismiss={() => setSnack(false)}
-          duration={3000}
-          action={{ label: 'OK', onPress: () => setSnack(false) }}
-          style={styles.snackbar}
-        >
-          OS atualizada com sucesso!
-        </Snackbar>
-      </Portal>
     </SafeAreaView>
   );
 }
@@ -337,5 +336,4 @@ const styles = StyleSheet.create({
   },
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
-  snackbar: { backgroundColor: Colors.primary },
 });

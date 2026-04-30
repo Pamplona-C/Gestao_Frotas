@@ -1,5 +1,13 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import {
   Text,
   TextInput,
@@ -17,9 +25,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { Veiculo } from '../../types';
-import { subscribeToAllVeiculos, createVeiculo, updateVeiculo, deleteVeiculo } from '../../services/veiculo.service';
+import {
+  getVeiculosPaginados,
+  getAllVeiculos,
+  createVeiculo,
+  updateVeiculo,
+  deleteVeiculo,
+} from '../../services/veiculo.service';
+import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
 import { Colors } from '../../constants/colors';
+
+const CACHE_KEY = 'cache:veiculos:p1';
 
 const schema = z.object({
   placa: z.string().min(7, 'Placa inválida').max(8),
@@ -32,39 +50,111 @@ type FormData = z.infer<typeof schema>;
 
 export default function VeiculosScreen() {
   const { bottom: bottomInset } = useSafeAreaInsets();
+
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
+  const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [carregando, setCarregando] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [busca, setBusca] = useState('');
+  const buscaRef = useRef('');
+  useEffect(() => { buscaRef.current = busca; }, [busca]);
+
   const [modal, setModal] = useState(false);
   const [ativo, setAtivo] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [editando, setEditando] = useState<Veiculo | null>(null);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
+  // ── Paginação ────────────────────────────────────────────────────────────
+  const carregarPrimeiraPagina = useCallback(async () => {
+    // 1. Mostra cache imediatamente (se válido)
+    const cached = await cacheGet<Veiculo[]>(CACHE_KEY);
+    if (cached) {
+      setVeiculos(cached);
+      setCarregando(false);
+    } else {
+      setCarregando(true);
+    }
+
+    // 2. Busca dados frescos do Firestore em background
+    try {
+      const res = await getVeiculosPaginados();
+      setVeiculos(res.items);
+      setCursor(res.cursor);
+      setHasMore(res.hasMore);
+      cacheSet(CACHE_KEY, res.items);
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const carregarMais = useCallback(async () => {
+    if (!hasMore || carregandoMais || buscaRef.current.trim()) return;
+    setCarregandoMais(true);
+    try {
+      const res = await getVeiculosPaginados(cursor);
+      setVeiculos((prev) => [...prev, ...res.items]);
+      setCursor(res.cursor);
+      setHasMore(res.hasMore);
+    } finally {
+      setCarregandoMais(false);
+    }
+  }, [hasMore, carregandoMais, cursor]);
+
+  // Foca tela → carrega página 1 (apenas se não há busca ativa)
   useFocusEffect(
     useCallback(() => {
-      const unsub = subscribeToAllVeiculos((data) => {
-        setVeiculos(data);
-        setRefreshing(false);
-      });
-      return unsub;
-    }, [])
+      if (!buscaRef.current.trim()) carregarPrimeiraPagina();
+    }, [carregarPrimeiraPagina])
   );
+
+  // Busca: debounce 350ms; quando vazia, volta ao modo paginado
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+
+    const trimmed = busca.trim();
+    if (!trimmed) {
+      carregarPrimeiraPagina();
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCarregando(true);
+      try {
+        const todos = await getAllVeiculos();
+        const lower = trimmed.toLowerCase();
+        setVeiculos(
+          todos.filter(
+            (v) =>
+              v.placa.toLowerCase().includes(lower) ||
+              v.modelo.toLowerCase().includes(lower) ||
+              v.frota.includes(trimmed),
+          )
+        );
+        setCursor(null);
+        setHasMore(false);
+      } finally {
+        setCarregando(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
-  }, []);
+    setBusca('');
+    carregarPrimeiraPagina();
+  }, [carregarPrimeiraPagina]);
 
-  const filtered = veiculos.filter(
-    (v) =>
-      v.placa.toLowerCase().includes(busca.toLowerCase()) ||
-      v.modelo.toLowerCase().includes(busca.toLowerCase()) ||
-      v.frota.includes(busca)
-  );
-
+  // ── CRUD ─────────────────────────────────────────────────────────────────
   const openNovo = () => {
     setEditando(null);
     reset({ placa: '', frota: '', modelo: '', ano: '', departamento: '' });
@@ -103,6 +193,10 @@ export default function VeiculosScreen() {
     reset();
     setAtivo(true);
     setEditando(null);
+    // Recarrega a lista para refletir a mudança
+    cacheInvalidate(CACHE_KEY);
+    setBusca('');
+    carregarPrimeiraPagina();
   };
 
   const onDelete = (v: Veiculo) => {
@@ -114,18 +208,23 @@ export default function VeiculosScreen() {
         {
           text: 'Excluir',
           style: 'destructive',
-          onPress: () => deleteVeiculo(v.id),
+          onPress: async () => {
+            await deleteVeiculo(v.id);
+            cacheInvalidate(CACHE_KEY);
+            carregarPrimeiraPagina();
+          },
         },
       ]
     );
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>Veículos</Text>
         <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
-          {veiculos.length} cadastrados
+          {veiculos.length}{hasMore && !busca ? '+' : ''} cadastrados
         </Text>
       </View>
 
@@ -136,13 +235,14 @@ export default function VeiculosScreen() {
           value={busca}
           onChangeText={setBusca}
           left={<TextInput.Icon icon="magnify" />}
+          right={busca ? <TextInput.Icon icon="close" onPress={() => setBusca('')} /> : undefined}
           style={styles.input}
           dense
         />
       </View>
 
       <FlatList
-        data={filtered}
+        data={veiculos}
         keyExtractor={(v) => v.id}
         renderItem={({ item }) => (
           <VeiculoCard
@@ -154,17 +254,34 @@ export default function VeiculosScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        onEndReached={carregarMais}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={() =>
+          carregandoMais ? (
+            <ActivityIndicator style={styles.footerLoader} color={Colors.primary} />
+          ) : hasMore && !busca ? (
+            <Text style={styles.footerHint}>Role para carregar mais</Text>
+          ) : null
+        }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            colors={[Colors.primary]} tintColor={Colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="car-outline" size={48} color={Colors.textHint} />
-            <Text variant="bodyMedium" style={{ color: Colors.textHint, marginTop: 8 }}>
-              Nenhum veículo encontrado
-            </Text>
-          </View>
+          carregando ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="car-outline" size={48} color={Colors.textHint} />
+              <Text variant="bodyMedium" style={{ color: Colors.textHint, marginTop: 8 }}>
+                Nenhum veículo encontrado
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -275,6 +392,8 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
+  footerLoader: { paddingVertical: 16 },
+  footerHint: { textAlign: 'center', color: Colors.textHint, fontSize: 12, paddingVertical: 12 },
   card: {
     borderRadius: 12,
     padding: 14,

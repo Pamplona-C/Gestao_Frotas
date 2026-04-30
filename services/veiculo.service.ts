@@ -10,13 +10,22 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   type DocumentData,
+  type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Veiculo } from '../types';
 
 const VEICULOS_LIMIT = 500;
+export const VEICULOS_PAGE_SIZE = 25;
+
+export type PaginaVeiculos = {
+  items: Veiculo[];
+  cursor: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+};
 
 function docToVeiculo(id: string, data: DocumentData): Veiculo {
   return { ...(data as Omit<Veiculo, 'id'>), id };
@@ -33,6 +42,22 @@ export function subscribeToAllVeiculos(
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => docToVeiculo(d.id, d.data())));
   });
+}
+
+export async function getVeiculosPaginados(
+  cursor?: QueryDocumentSnapshot<DocumentData> | null
+): Promise<PaginaVeiculos> {
+  const q = cursor
+    ? query(collection(db, 'veiculos'), orderBy('placa'), startAfter(cursor), limit(VEICULOS_PAGE_SIZE + 1))
+    : query(collection(db, 'veiculos'), orderBy('placa'), limit(VEICULOS_PAGE_SIZE + 1));
+  const snap = await getDocs(q);
+  const hasMore = snap.docs.length > VEICULOS_PAGE_SIZE;
+  const docs = hasMore ? snap.docs.slice(0, VEICULOS_PAGE_SIZE) : snap.docs;
+  return {
+    items: docs.map((d) => docToVeiculo(d.id, d.data())),
+    cursor: (docs[docs.length - 1] as QueryDocumentSnapshot<DocumentData>) ?? null,
+    hasMore,
+  };
 }
 
 export async function getAllVeiculos(): Promise<Veiculo[]> {

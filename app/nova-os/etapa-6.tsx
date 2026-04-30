@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { useAuthStore } from '../../store/auth.store';
@@ -16,10 +17,25 @@ type Fase = 'enviando' | 'concluido' | 'concluido_sem_fotos';
 
 export default function Etapa6() {
   const router = useRouter();
+  const navigation = useNavigation();
   const store = useNovaOSStore();
   const { currentUser } = useAuthStore();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const submittedRef = useRef(false);
+  const canLeaveRef = useRef(false);
+
+  // Bloqueia hardware back button e swipe — o único caminho de saída é o botão "Ir para início"
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', (e: any) => {
+      if (!canLeaveRef.current) e.preventDefault();
+    });
+    return unsub;
+  }, [navigation]);
+
+  const goHome = useCallback(() => {
+    canLeaveRef.current = true;
+    router.replace('/(tabs)');
+  }, [router]);
 
   const [fase, setFase] = useState<Fase>('enviando');
   const [progresso, setProgresso] = useState<number | null>(null);
@@ -95,7 +111,7 @@ export default function Etapa6() {
             mode="contained"
             style={styles.btn}
             contentStyle={styles.btnContent}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={goHome}
           >
             Voltar ao início
           </Button>
@@ -155,7 +171,7 @@ export default function Etapa6() {
             style={styles.btn}
             contentStyle={styles.btnContent}
             icon="home"
-            onPress={() => router.replace('/(tabs)')}
+            onPress={goHome}
           >
             Ir para início
           </Button>
@@ -205,7 +221,7 @@ export default function Etapa6() {
           style={styles.btn}
           contentStyle={styles.btnContent}
           icon="home"
-          onPress={() => router.replace('/(tabs)')}
+          onPress={goHome}
         >
           Ir para início
         </Button>

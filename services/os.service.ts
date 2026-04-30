@@ -1,5 +1,6 @@
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -14,7 +15,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { OrdemServico, OSStatus } from '../types';
+import { OrdemServico, OSStatus, StatusEntry } from '../types';
 
 /** Statuses que exigem atenção — excluídas as concluídas. */
 const ACTIVE_STATUSES: OSStatus[] = [
@@ -127,12 +128,27 @@ export async function getAllOS(): Promise<OrdemServico[]> {
 export async function createOS(
   os: Omit<OrdemServico, 'id' | 'criadoEm' | 'status'>
 ): Promise<OrdemServico> {
+  const firstEntry: StatusEntry = {
+    status: 'nova',
+    changedAt: new Date().toISOString(),
+    changedBy: os.condutorNome,
+  };
   const payload = Object.fromEntries(
-    Object.entries({ ...os, status: 'nova', criadoEm: serverTimestamp() })
-      .filter(([, v]) => v !== undefined)
+    Object.entries({
+      ...os,
+      status: 'nova',
+      criadoEm: serverTimestamp(),
+      statusHistory: [firstEntry],
+    }).filter(([, v]) => v !== undefined)
   );
   const ref = await addDoc(collection(db, 'ordens-servico'), payload);
-  return { ...os, id: ref.id, status: 'nova', criadoEm: new Date().toISOString() };
+  return { ...os, id: ref.id, status: 'nova', criadoEm: new Date().toISOString(), statusHistory: [firstEntry] };
+}
+
+export async function appendStatusEntry(osId: string, entry: StatusEntry): Promise<void> {
+  await updateDoc(doc(db, 'ordens-servico', osId), {
+    statusHistory: arrayUnion(entry),
+  });
 }
 
 export async function updateOS(id: string, updates: Partial<OrdemServico>): Promise<void> {
