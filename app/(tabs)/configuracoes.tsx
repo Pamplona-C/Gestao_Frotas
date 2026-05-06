@@ -105,6 +105,17 @@ export default function ConfiguracoesScreen() {
           </>
         )}
 
+        {/* ── Avisos ───────────────────────────────── */}
+        <Text variant="labelSmall" style={styles.sectionLabel}>AVISOS</Text>
+        <Surface style={styles.card} elevation={1}>
+          <OptionRow
+            icon="notifications-outline"
+            label="Notificações"
+            sub="Histórico de alertas recebidos"
+            onPress={() => router.push('/notificacoes' as any)}
+          />
+        </Surface>
+
         {/* ── Sessão ───────────────────────────────── */}
         <Text variant="labelSmall" style={styles.sectionLabel}>SESSÃO</Text>
         <Surface style={[styles.card, styles.logoutCard]} elevation={1}>

@@ -74,6 +74,17 @@ export interface StatusEntry {
   changedBy: string; // condutor na criação, gestor nas demais
 }
 
+export interface Notificacao {
+  id: string;
+  userId: string;
+  type: 'os_criada' | 'status_atualizado' | 'lembrete_os';
+  title: string;
+  body: string;
+  osId: string;
+  sentAt: string; // ISO string
+  readAt?: string;
+}
+
 export interface OrdemServico {
   id: string;
   placa: string;

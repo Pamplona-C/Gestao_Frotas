@@ -36,6 +36,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Cloud Functions build output
+functions/lib/
+
 app-example
 
 # generated native folders
@@ -43,3 +46,5 @@ app-example
 /android
 .env
 scripts/serviceAccountKey.json
+GoogleService-Info.plist
+*.code-workspace

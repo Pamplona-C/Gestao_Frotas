@@ -17,6 +17,7 @@ import { useConectividade } from '../../hooks/useConectividade';
 import { OSCard } from '../../components/OSCard';
 import { MetricCard } from '../../components/MetricCard';
 import { StatusBadge } from '../../components/StatusBadge';
+import { NotificationBell } from '../../components/NotificationBell';
 import {
   subscribeToOSByCondutorId,
   subscribeToAllOS,
@@ -82,15 +83,18 @@ function CondutorHome() {
             {currentUser?.departamento}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
-          {currentUser?.photoURL ? (
-            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <NotificationBell />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+            {currentUser?.photoURL ? (
+              <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.metrics}>
@@ -197,17 +201,20 @@ function GestorDashboard() {
             {currentUser?.nome}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
-          {currentUser?.photoURL ? (
-            <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {currentUser?.nome.split(' ').slice(0, 2).map((n) => n[0]).join('')}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <NotificationBell />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+            {currentUser?.photoURL ? (
+              <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {currentUser?.nome.split(' ').slice(0, 2).map((n) => n[0]).join('')}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -310,6 +317,7 @@ const styles = StyleSheet.create({
   },
   greeting: { fontWeight: '700', color: Colors.textPrimary },
   dept: { color: Colors.textSecondary, marginTop: 2 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: Colors.primary,

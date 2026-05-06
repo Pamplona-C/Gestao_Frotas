@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 admin.initializeApp();
 
@@ -115,11 +116,11 @@ export const onOSCreated = onDocumentCreated(
     const entries = await getGestorTokenEntries();
     if (entries.length === 0) return;
 
+    const title = 'Nova OS aguardando análise';
+    const body  = `Aberta por ${condutorNome} · ${placa}`;
+
     await sendMulticast(entries, {
-      notification: {
-        title: 'Nova OS aguardando análise',
-        body:  `Aberta por ${condutorNome} · ${placa}`,
-      },
+      notification: { title, body },
       data:    { osId },
       android: {
         priority: 'high',
@@ -129,6 +130,21 @@ export const onOSCreated = onDocumentCreated(
         payload: { aps: { sound: 'default', badge: 1 } },
       },
     });
+
+    // Persiste histórico para cada gestor destinatário
+    const batch = db.batch();
+    entries.forEach(({ uid }) => {
+      const ref = db.collection('notificacoes').doc();
+      batch.set(ref, {
+        userId: uid,
+        type: 'os_criada',
+        title,
+        body,
+        osId,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
   },
 );
 
@@ -154,13 +170,13 @@ export const onOSStatusUpdated = onDocumentUpdated(
     const token = condutorDoc.data()?.fcmToken as string | undefined;
     if (!token) return;
 
+    const title = msg.title;
+    const body  = msg.body(osId);
+
     try {
       await messaging.send({
         token,
-        notification: {
-          title: msg.title,
-          body:  msg.body(osId),
-        },
+        notification: { title, body },
         data:    { osId },
         android: {
           priority: 'high',
@@ -170,10 +186,87 @@ export const onOSStatusUpdated = onDocumentUpdated(
           payload: { aps: { sound: 'default', badge: 1 } },
         },
       });
+
+      // Persiste histórico para o condutor
+      await db.collection('notificacoes').add({
+        userId: condutorId,
+        type: 'status_atualizado',
+        title,
+        body,
+        osId,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (err: any) {
       if (isStaleToken(err?.errorInfo?.code)) {
         await removeStaleToken(condutorId);
       }
     }
+  },
+);
+
+// ── Trigger 3: Lembretes diários de OS agendadas ──────────────────────────────
+
+const ACTIVE_STATUSES = ['nova', 'em_andamento', 'em_diagnostico', 'orcamento_aprovado'];
+const SP_OFFSET_MS = -3 * 60 * 60 * 1000; // UTC-3 (Brasília, sem horário de verão)
+
+export const enviarLembretesOS = onSchedule(
+  { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo' },
+  async () => {
+    const hojeStr = new Date(Date.now() + SP_OFFSET_MS).toISOString().slice(0, 10);
+
+    const snap = await db
+      .collection('ordens-servico')
+      .where('status', 'in', ACTIVE_STATUSES)
+      .get();
+
+    const candidatas = snap.docs.filter((d) => {
+      const data = d.data();
+      if (!data.dataDesejada || data.lembreteEnviadoEm) return false;
+      const osDateSP = new Date(new Date(data.dataDesejada).getTime() + SP_OFFSET_MS);
+      return osDateSP.toISOString().slice(0, 10) === hojeStr;
+    });
+
+    await Promise.all(
+      candidatas.map(async (d) => {
+        const os = d.data();
+        const title = 'Lembrete de OS agendada';
+        const body  = `Sua OS do veículo ${os.placa} está marcada para hoje. Não se esqueça de levar à oficina!`;
+
+        const condutorDoc = await db.collection('usuarios').doc(os.condutorId).get();
+        const token = condutorDoc.data()?.fcmToken as string | undefined;
+
+        if (token) {
+          try {
+            await messaging.send({
+              token,
+              notification: { title, body },
+              data: { osId: d.id },
+              android: {
+                priority: 'high',
+                notification: { channelId: 'os-updates', sound: 'default' },
+              },
+              apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+            });
+          } catch (err: any) {
+            if (isStaleToken(err?.errorInfo?.code)) {
+              await removeStaleToken(os.condutorId);
+            }
+          }
+        }
+
+        await db.collection('notificacoes').add({
+          userId: os.condutorId,
+          type: 'lembrete_os',
+          title,
+          body,
+          osId: d.id,
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await d.ref.update({
+          lembreteEnviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }),
+    );
   },
 );
