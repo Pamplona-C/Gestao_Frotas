@@ -48,6 +48,10 @@ export function mapFirebaseError(err: unknown): AuthServiceError {
       return { code: fe.code, message: 'Faça login novamente para realizar esta ação.' };
     case 'auth/email-already-in-use':
       return { code: fe.code, message: 'E-mail já cadastrado.' };
+    case 'app/account-disabled':
+      return { code: fe.code, message: 'Sua conta foi desativada. Entre em contato com o gestor.' };
+    case 'app/account-not-found':
+      return { code: fe.code, message: 'Conta não encontrada. Entre em contato com o gestor.' };
     default:
       return { code: fe?.code ?? 'unknown', message: 'Erro inesperado. Tente novamente.' };
   }
@@ -62,12 +66,13 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
   const d = snap.data() as UserProfile;
   return {
     uid,
-    id:          uid,  // backward-compat
-    nome:        d.nome        ?? '',
-    email:       d.email       ?? '',
-    perfil:      d.perfil      as UserPerfil,
+    id:           uid,
+    nome:         d.nome         ?? '',
+    email:        d.email        ?? '',
+    perfil:       d.perfil       as UserPerfil,
     departamento: d.departamento ?? '',
-    photoURL:    d.photoURL    ?? null,
+    photoURL:     d.photoURL     ?? null,
+    ativo:        d.ativo,
   };
 }
 
@@ -83,36 +88,22 @@ export async function createUserProfile(
   });
 }
 
-/**
- * Monta o AppUser combinando Firebase Auth + Firestore.
- * Se o perfil ainda não existir no Firestore, cria um stub de 'condutor'.
- * TODO: redirecionar para onboarding quando perfil não existir.
- */
 export async function buildAppUser(
   uid: string,
   fallback: { displayName?: string | null; email?: string | null; photoURL?: string | null }
 ): Promise<AppUser> {
   const profile = await getUserProfile(uid);
-  if (profile) {
-    // Foto do Firebase Auth sobrepõe Firestore (atualizada pelo updateProfile)
-    return { ...profile, photoURL: fallback.photoURL ?? profile.photoURL };
+
+  if (!profile) {
+    throw { code: 'app/account-not-found', message: 'Conta não encontrada. Entre em contato com o gestor.' };
   }
 
-  // Perfil não encontrado — cria documento no Firestore com perfil padrão 'condutor'
-  const stub = {
-    nome:         fallback.displayName ?? fallback.email ?? 'Usuário',
-    email:        fallback.email ?? '',
-    perfil:       'condutor' as const,
-    departamento: '',
-  };
-  await createUserProfile(uid, stub);
+  if (profile.ativo === false) {
+    await fbSignOut(auth);
+    throw { code: 'app/account-disabled', message: 'Sua conta foi desativada. Entre em contato com o gestor.' };
+  }
 
-  return {
-    uid,
-    id:          uid,
-    ...stub,
-    photoURL:    fallback.photoURL ?? null,
-  };
+  return { ...profile, photoURL: fallback.photoURL ?? profile.photoURL };
 }
 
 // ── Email / Senha ──────────────────────────────────────────────────────────────

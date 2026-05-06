@@ -26,6 +26,7 @@ export interface AppUser {
   perfil:       UserPerfil;
   departamento: string;
   photoURL?:    string | null;
+  ativo?:       boolean;
 }
 
 /** Documento Firestore /usuarios/{uid} */
@@ -35,7 +36,8 @@ export interface UserProfile {
   perfil:         UserPerfil;
   departamento:   string;
   photoURL?:      string | null;
-  fcmToken?: string | null;
+  fcmToken?:      string | null;
+  ativo?:         boolean;
 }
 
 export interface Veiculo {
