@@ -346,10 +346,12 @@ export default function FornecedoresScreen() {
                     <TextInput
                       label={label}
                       mode="outlined"
-                      value={value}
+                      value={value ?? ''}
                       onChangeText={onChange}
                       onBlur={onBlur}
                       keyboardType={keyboard}
+                      autoCorrect={false}
+                      autoComplete="off"
                       error={!!errors[key]}
                       dense
                     />

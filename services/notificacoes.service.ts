@@ -3,7 +3,6 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy,
   doc,
   updateDoc,
   Unsubscribe,
@@ -18,23 +17,24 @@ export function subscribeToNotificacoes(
   const q = query(
     collection(db, 'notificacoes'),
     where('userId', '==', uid),
-    orderBy('sentAt', 'desc'),
   );
 
   return onSnapshot(q, (snap) => {
-    const items: Notificacao[] = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        userId: data.userId,
-        type: data.type,
-        title: data.title,
-        body: data.body,
-        osId: data.osId,
-        sentAt: data.sentAt?.toDate?.().toISOString() ?? new Date().toISOString(),
-        readAt: data.readAt?.toDate?.().toISOString(),
-      } satisfies Notificacao;
-    });
+    const items: Notificacao[] = snap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          userId: data.userId,
+          type: data.type,
+          title: data.title,
+          body: data.body,
+          osId: data.osId,
+          sentAt: data.sentAt?.toDate?.().toISOString() ?? new Date().toISOString(),
+          readAt: data.readAt?.toDate?.().toISOString(),
+        } satisfies Notificacao;
+      })
+      .sort((a, b) => b.sentAt.localeCompare(a.sentAt)); // mais recentes primeiro, client-side
     callback(items);
   });
 }
