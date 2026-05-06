@@ -16,8 +16,8 @@ import { ptBR } from 'date-fns/locale';
 import { useAuthStore } from '../store/auth.store';
 import {
   subscribeToNotificacoes,
-  marcarComoLida,
-  marcarTodasComoLidas,
+  markAsRead,
+  markAllAsRead,
 } from '../services/notificacoes.service';
 import { Notificacao } from '../types';
 import { Colors } from '../constants/colors';
@@ -35,7 +35,7 @@ function buildSections(items: Notificacao[]): ListItem[] {
   const result: ListItem[] = [];
   let lastLabel = '';
   for (const n of items) {
-    const label = groupLabel(n.sentAt);
+    const label = groupLabel(n.createdAt);
     if (label !== lastLabel) {
       result.push({ type: 'header', label });
       lastLabel = label;
@@ -58,11 +58,11 @@ export default function NotificacoesScreen() {
     }, [currentUser?.uid]),
   );
 
-  const unreadIds = notificacoes.filter((n) => !n.readAt).map((n) => n.id);
+  const unreadIds = notificacoes.filter((n) => !n.read).map((n) => n.id);
   const sections = buildSections(notificacoes);
 
   const handlePressItem = async (item: Notificacao) => {
-    if (!item.readAt) await marcarComoLida(item.id);
+    if (!item.read) await markAsRead(item.id);
     router.push(`/os/${item.osId}`);
   };
 
@@ -71,7 +71,7 @@ export default function NotificacoesScreen() {
       return <Text style={styles.groupLabel}>{item.label}</Text>;
     }
     const n = item.data;
-    const unread = !n.readAt;
+    const unread = !n.read;
     return (
       <Pressable
         style={[styles.card, unread && styles.cardUnread]}
@@ -94,7 +94,7 @@ export default function NotificacoesScreen() {
           </Text>
           <Text style={styles.body} numberOfLines={2}>{n.body}</Text>
           <Text style={styles.time}>
-            {formatDistanceToNow(parseISO(n.sentAt), { addSuffix: true, locale: ptBR })}
+            {formatDistanceToNow(parseISO(n.createdAt), { addSuffix: true, locale: ptBR })}
           </Text>
         </View>
         {unread && <View style={styles.dot} />}
@@ -110,7 +110,7 @@ export default function NotificacoesScreen() {
         </TouchableOpacity>
         <Text variant="titleLarge" style={styles.pageTitle}>Notificações</Text>
         {unreadIds.length > 0 ? (
-          <TouchableOpacity onPress={() => marcarTodasComoLidas(unreadIds)}>
+          <TouchableOpacity onPress={() => markAllAsRead(unreadIds)}>
             <Text style={styles.markAll}>Marcar todas</Text>
           </TouchableOpacity>
         ) : (

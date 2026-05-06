@@ -132,6 +132,8 @@ export const onOSCreated = onDocumentCreated(
     });
 
     // Persiste histórico para cada gestor destinatário
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const batch = db.batch();
     entries.forEach(({ uid }) => {
       const ref = db.collection('notificacoes').doc();
@@ -141,7 +143,9 @@ export const onOSCreated = onDocumentCreated(
         title,
         body,
         osId,
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt,
+        read: false,
       });
     });
     await batch.commit();
@@ -188,13 +192,16 @@ export const onOSStatusUpdated = onDocumentUpdated(
       });
 
       // Persiste histórico para o condutor
+      const now = new Date();
       await db.collection('notificacoes').add({
         userId: condutorId,
         type: 'status_atualizado',
         title,
         body,
         osId,
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+        read: false,
       });
     } catch (err: any) {
       if (isStaleToken(err?.errorInfo?.code)) {
@@ -254,13 +261,16 @@ export const enviarLembretesOS = onSchedule(
           }
         }
 
+        const now = new Date();
         await db.collection('notificacoes').add({
           userId: os.condutorId,
           type: 'lembrete_os',
           title,
           body,
           osId: d.id,
-          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+          read: false,
         });
 
         await d.ref.update({

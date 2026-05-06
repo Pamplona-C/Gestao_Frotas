@@ -15,7 +15,7 @@ export function NotificationBell() {
   useEffect(() => {
     if (!currentUser?.uid) return;
     const unsub = subscribeToNotificacoes(currentUser.uid, (items) => {
-      setUnreadCount(items.filter((n) => !n.readAt).length);
+      setUnreadCount(items.filter((n) => !n.read).length);
     });
     return unsub;
   }, [currentUser?.uid]);

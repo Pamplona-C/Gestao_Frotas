@@ -81,8 +81,9 @@ export interface Notificacao {
   title: string;
   body: string;
   osId: string;
-  sentAt: string; // ISO string
-  readAt?: string;
+  createdAt: string; // ISO string
+  expiresAt: string; // ISO string — createdAt + 90 dias (TTL policy)
+  read: boolean;
 }
 
 export interface OrdemServico {
