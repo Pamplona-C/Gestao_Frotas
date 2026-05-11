@@ -46,6 +46,14 @@ export function computeMetrics(all: OrdemServico[]) {
     emDiagnostico: all.filter((o) => o.status === 'em_diagnostico').length,
     orcamentoAprovado: all.filter((o) => o.status === 'orcamento_aprovado').length,
     novas: all.filter((o) => o.status === 'nova').length,
+    gastoPreventiva: all.reduce((acc, o) =>
+      acc + (o.servicosRealizados
+        ?.filter((s) => s.tipo === 'preventiva')
+        .reduce((a, s) => a + s.valor, 0) ?? 0), 0),
+    gastoCorretiva: all.reduce((acc, o) =>
+      acc + (o.servicosRealizados
+        ?.filter((s) => s.tipo === 'corretiva')
+        .reduce((a, s) => a + s.valor, 0) ?? 0), 0),
   };
 }
 

@@ -167,7 +167,7 @@ function GestorDashboard() {
   const router = useRouter();
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
-  const [metrics, setMetrics] = useState({ total: 0, emAndamento: 0, orcamentoAprovado: 0 });
+  const [metrics, setMetrics] = useState({ total: 0, emAndamento: 0, orcamentoAprovado: 0, gastoPreventiva: 0, gastoCorretiva: 0 });
   const [filtro, setFiltro] = useState<OSStatus | 'todas'>('todas');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -264,6 +264,7 @@ function GestorDashboard() {
               os={os}
               onPress={() => router.push(`/os/${os.id}`)}
               fornecedor={os.fornecedorId ? fornecedoresMap.get(os.fornecedorId) : null}
+              showValor
             />
           ))}
           {!loading && filtered.length === 0 && (
