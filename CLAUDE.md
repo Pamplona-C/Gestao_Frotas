@@ -60,10 +60,17 @@ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
 
 | Collection | Purpose |
 |---|---|
-| `usuarios/{uid}` | User profiles (nome, email, perfil, departamento, photoURL) |
+| `usuarios/{uid}` | User profiles (nome, email, perfil, departamento, photoURL, fcmToken) |
 | `ordens-servico/{id}` | Work orders (OrdemServico shape) |
 | `fornecedores/{id}` | Suppliers |
 | `veiculos/{id}` | Fleet vehicles |
+
+### Firebase Storage paths
+
+| Path | Purpose |
+|---|---|
+| `os-fotos/{osId}/{timestamp}_{index}` | OS photos — parallel upload via `storage.service.ts` |
+| `perfil-fotos/{uid}` | Profile photo — overwrites on change (no accumulation) |
 
 ### Global stores (Zustand)
 
@@ -71,6 +78,7 @@ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
 |---|---|
 | `store/auth.store.ts` | `currentUser`, `loading`, `error`, `login`, `loginWithGoogle`, `logout`, `updatePhoto` |
 | `store/novaOS.store.ts` | Multi-step nova OS form state (6 steps), `reset()` |
+| `store/notification.store.ts` | `fcmToken`, `setFcmToken` |
 
 ### Auth & navigation
 
@@ -93,6 +101,7 @@ app/
     veiculos.tsx           # Gestor only (href: null for condutor)
     fornecedores.tsx       # Gestor only (href: null for condutor)
     profile.tsx
+    explore.tsx            # Unused Expo template leftover — ignore
   nova-os/
     _layout.tsx            # Stack wrapper
     etapa-1.tsx … etapa-6.tsx   # 6-step OS creation form
@@ -120,6 +129,23 @@ app/
 
 All colors in `constants/colors.ts`. Status colors at `Colors.status[status].{bg,text}`.
 
+### Push notifications
+
+FCM is implemented via `@react-native-firebase/messaging` — a native module that **does not load in Expo Go**. The service (`services/notification.service.ts`) uses conditional `require()` to guard this. Token registration flow:
+
+1. `hooks/usePushNotifications.ts` is called in `app/_layout.tsx`; calls `registrarTokenFCM(uid)` on mount and when uid changes.
+2. Token is saved to `usuarios/{uid}.fcmToken` in Firestore.
+3. Cloud Functions (`functions/src/index.ts`) send notifications:
+   - `onOSCreated` — notifies all gestores when an OS is opened.
+   - `onOSStatusUpdated` — notifies the condutor when their OS status changes.
+   - Stale tokens are automatically deleted from Firestore after FCM returns a permanent error.
+
+To deploy functions: `cd functions && npm run deploy`. To serve locally with emulator: `npm run serve`.
+
+### Offline detection
+
+`hooks/useConectividade.ts` wraps `@react-native-community/netinfo` and returns `online: boolean`. Screens that require connectivity (e.g., nova-os flow) render `<SemInternet />` when offline.
+
 ### Key components
 
 | Component | Notes |
@@ -130,6 +156,13 @@ All colors in `constants/colors.ts`. Status colors at `Colors.status[status].{bg
 | `Timeline` | 4 fixed steps derived from OS `status` field |
 | `MetricCard` | Number + label surface card |
 | `AccordionItem` | Reanimated expand/collapse; `subitens=[]` → direct checkbox |
+| `CidadeAutocomplete` | City search backed by `data/municipios.ts` static list |
+| `SemInternet` | Full-screen offline fallback with animated entry |
+
+### Static data
+
+- `constants/servicosCategorias.ts` — predefined OS service categories with optional subitems; used in nova-os step 3.
+- `data/municipios.ts` — static Brazilian city list for `CidadeAutocomplete`.
 
 ### Path aliases
 

@@ -310,12 +310,12 @@ export default function OSDetailScreen() {
           <Timeline os={os} />
         </Surface>
 
-        {/* Nota interna (gestor only) */}
-        {os.notaInterna && currentUser?.perfil === 'gestor' && (
+        {/* Mensagem do gestor */}
+        {os.notaInterna && (
           <Surface style={[styles.card, styles.noteCard]} elevation={0}>
             <View style={styles.noteHeader}>
               <Ionicons name="document-text-outline" size={15} color={Colors.primary} />
-              <Text variant="labelMedium" style={{ color: Colors.primary }}>Nota interna</Text>
+              <Text variant="labelMedium" style={{ color: Colors.primary }}>Mensagem do gestor</Text>
             </View>
             <Text variant="bodySmall" style={{ color: Colors.textSecondary, lineHeight: 20 }}>
               {os.notaInterna}
