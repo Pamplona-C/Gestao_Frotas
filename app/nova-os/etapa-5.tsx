@@ -104,11 +104,6 @@ export default function Etapa5() {
 
         {/* Serviços */}
         <SummarySection title="Serviços" step={2} onEdit={() => router.push('/nova-os/etapa-2')}>
-          <SummaryRow
-            icon="build-outline"
-            label="Tipo"
-            value={store.tipo === 'preventiva' ? 'Preventiva' : store.tipo === 'corretiva' ? 'Corretiva' : '—'}
-          />
           {store.servicosSelecionados.map((s, i) => (
             <View key={i} style={styles.tagRow}>
               <Ionicons name="checkmark-circle" size={14} color={Colors.accent} />

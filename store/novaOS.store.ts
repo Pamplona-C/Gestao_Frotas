@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { OSTipo } from '../types';
 
 interface NovaOSState {
   // Etapa 1
@@ -7,7 +6,6 @@ interface NovaOSState {
   hodometro: string;
   cidade: string;
   // Etapa 2
-  tipo: OSTipo | '';
   servicosSelecionados: string[];
   // Etapa 3
   descricao: string;
@@ -20,7 +18,6 @@ interface NovaOSState {
   setPlaca: (v: string) => void;
   setHodometro: (v: string) => void;
   setCidade: (v: string) => void;
-  setTipo: (v: OSTipo | '') => void;
   setServicosSelecionados: (v: string[]) => void;
   setDescricao: (v: string) => void;
   setFotos: (v: string[]) => void;
@@ -34,7 +31,6 @@ const initialState = {
   placa: '',
   hodometro: '',
   cidade: '',
-  tipo: '' as OSTipo | '',
   servicosSelecionados: [] as string[],
   descricao: '',
   fotos: [] as string[],
@@ -48,7 +44,6 @@ export const useNovaOSStore = create<NovaOSState>((set) => ({
   setPlaca: (placa) => set({ placa }),
   setHodometro: (hodometro) => set({ hodometro }),
   setCidade: (cidade) => set({ cidade }),
-  setTipo: (tipo) => set({ tipo }),
   setServicosSelecionados: (servicosSelecionados) => set({ servicosSelecionados }),
   setDescricao: (descricao) => set({ descricao }),
   setFotos: (fotos) => set({ fotos }),

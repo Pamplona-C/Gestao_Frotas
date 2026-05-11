@@ -60,7 +60,6 @@ export default function Etapa6() {
           condutorPhotoURL:      currentUser?.photoURL ?? null,
           condutorDepartamento:  currentUser?.departamento,
           hodometro: parseInt(store.hodometro) || 0,
-          tipo: store.tipo as any,
           servicos: store.servicosSelecionados,
           descricao: store.descricao || undefined,
           cidade: store.cidade,
