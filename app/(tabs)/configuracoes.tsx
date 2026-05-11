@@ -101,6 +101,12 @@ export default function ConfiguracoesScreen() {
                 sub="Cadastre condutores e gestores"
                 onPress={() => router.push('/novo-usuario')}
               />
+              <OptionRow
+                icon="list-outline"
+                label="Catálogo de Serviços"
+                sub="Gerenciar serviços e peças"
+                onPress={() => router.push('/catalogo-servicos' as any)}
+              />
             </Surface>
           </>
         )}

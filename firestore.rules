@@ -41,6 +41,12 @@ service cloud.firestore {
       allow write: if isGestor();
     }
 
+    // Catálogo de serviços: leitura autenticada; escrita apenas para gestores
+    match /catalogo-servicos/{id} {
+      allow read:  if isAuthenticated();
+      allow write: if isGestor();
+    }
+
     // Notificações: cada usuário lê e marca como lida apenas as próprias
     match /notificacoes/{id} {
       allow read:   if isAuthenticated() && request.auth.uid == resource.data.userId;
