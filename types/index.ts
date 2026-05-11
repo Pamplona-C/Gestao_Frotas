@@ -68,7 +68,21 @@ export type OSStatus =
   | 'orcamento_aprovado'
   | 'concluida';
 
-export type OSTipo = 'preventiva' | 'corretiva';
+export type TipoServico = 'preventiva' | 'corretiva';
+
+export interface CatalogoServico {
+  id: string;
+  nome: string;
+  tipo: TipoServico;
+  ativo: boolean;
+}
+
+export interface ServicoRealizado {
+  catalogoId: string;
+  nome: string;
+  tipo: TipoServico;
+  valor: number;
+}
 
 export interface StatusEntry {
   status: OSStatus;
@@ -95,7 +109,6 @@ export interface OrdemServico {
   condutorId: string;
   condutorNome: string;
   hodometro: number;
-  tipo: OSTipo;
   servicos?: string[];
   descricao?: string;
   fotos?: string[];
@@ -114,4 +127,8 @@ export interface OrdemServico {
   gestorPhotoURL?:      string | null;
   gestorDepartamento?:  string;
   statusHistory?:       StatusEntry[];
+  servicosRealizados?:  ServicoRealizado[];
+  valorTotal?:          number;
+  gastoPreventiva?:     number;
+  gastoCorretiva?:      number;
 }

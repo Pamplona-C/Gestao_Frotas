@@ -235,7 +235,6 @@ export default function OSDetailScreen() {
           )}
 
           <View style={styles.infoGrid}>
-            <InfoRow icon="build-outline" label="Tipo" value={os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'} />
             <InfoRow icon="speedometer-outline" label="Hodômetro" value={`${os.hodometro.toLocaleString('pt-BR')} km`} />
             <InfoRow icon="calendar-outline" label="Abertura" value={criadoEm} />
             {os.cidade && <InfoRow icon="location-outline" label="Cidade" value={os.cidade} />}
@@ -309,6 +308,50 @@ export default function OSDetailScreen() {
           <Divider style={{ marginBottom: 10 }} />
           <Timeline os={os} />
         </Surface>
+
+        {/* Serviços realizados */}
+        {os.servicosRealizados && os.servicosRealizados.length > 0 && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleSmall" style={styles.cardTitle}>Serviços realizados</Text>
+            <Divider style={{ marginBottom: 10 }} />
+            {os.servicosRealizados.map((s, i) => (
+              <View key={i} style={styles.servicoRow}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text variant="bodySmall" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                    {s.nome}
+                  </Text>
+                  <View style={[
+                    styles.tipoBadge,
+                    { backgroundColor: s.tipo === 'preventiva' ? '#DCFCE7' : '#DBEAFE' },
+                  ]}>
+                    <Text style={[
+                      styles.tipoBadgeText,
+                      { color: s.tipo === 'preventiva' ? '#166534' : '#1e40af' },
+                    ]}>
+                      {s.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}
+                    </Text>
+                  </View>
+                </View>
+                {currentUser?.perfil === 'gestor' && (
+                  <Text variant="bodySmall" style={styles.servicoValor}>
+                    {s.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </Text>
+                )}
+              </View>
+            ))}
+            {currentUser?.perfil === 'gestor' && (
+              <>
+                <Divider style={{ marginVertical: 8 }} />
+                <View style={styles.totalRow}>
+                  <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>Total</Text>
+                  <Text variant="titleSmall" style={styles.totalValue}>
+                    {(os.valorTotal ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </Text>
+                </View>
+              </>
+            )}
+          </Surface>
+        )}
 
         {/* Mensagem do gestor */}
         {os.notaInterna && (
@@ -445,4 +488,18 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
   mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  servicoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: 8,
+  },
+  servicoValor: { color: Colors.textPrimary, fontWeight: '600', marginTop: 2 },
+  tipoBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+  tipoBadgeText: { fontSize: 11, fontWeight: '700' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalValue: { color: Colors.primary, fontWeight: '700' },
 });

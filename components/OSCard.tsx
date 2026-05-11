@@ -13,9 +13,10 @@ interface Props {
   onPress: () => void;
   /** Fornecedor pré-carregado pelo componente pai — elimina N+1 reads. */
   fornecedor?: Fornecedor | null;
+  showValor?: boolean;
 }
 
-export function OSCard({ os, onPress, fornecedor }: Props) {
+export function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
   const dataFormatada = format(parseISO(os.criadoEm), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
 
   return (
@@ -50,11 +51,13 @@ export function OSCard({ os, onPress, fornecedor }: Props) {
             <Ionicons name="calendar-outline" size={13} color={Colors.textHint} />
             <Text variant="labelSmall" style={styles.dateText}>{dataFormatada}</Text>
           </View>
-          <View style={styles.tipoBadge}>
-            <Text style={styles.tipoText}>
-              {os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}
-            </Text>
-          </View>
+          {showValor && os.valorTotal != null && os.valorTotal > 0 && (
+            <View style={styles.tipoBadge}>
+              <Text style={styles.tipoText}>
+                {os.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </Text>
+            </View>
+          )}
         </View>
       </Surface>
     </TouchableOpacity>
