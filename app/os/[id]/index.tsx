@@ -235,7 +235,9 @@ export default function OSDetailScreen() {
           )}
 
           <View style={styles.infoGrid}>
-            <InfoRow icon="speedometer-outline" label="Hodômetro" value={`${os.hodometro.toLocaleString('pt-BR')} km`} />
+            {os.hodometro !== undefined && (
+              <InfoRow icon="speedometer-outline" label="Hodômetro" value={`${os.hodometro.toLocaleString('pt-BR')} km`} />
+            )}
             <InfoRow icon="calendar-outline" label="Abertura" value={criadoEm} />
             {os.cidade && <InfoRow icon="location-outline" label="Cidade" value={os.cidade} />}
             {dataDesejada && (
