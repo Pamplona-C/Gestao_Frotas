@@ -9,7 +9,6 @@ import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { useAuthStore } from '../../store/auth.store';
 import { createOS, updateOS } from '../../services/os.service';
-import { getVeiculoByPlaca } from '../../services/veiculo.service';
 import { uploadFotosOS } from '../../services/storage.service';
 import { Colors } from '../../constants/colors';
 
@@ -43,30 +42,34 @@ export default function Etapa6() {
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    if (submittedRef.current || !store.placa) return;
+    if (submittedRef.current) return;
+    if (!store.veiculoId) {
+      setErro('Dados incompletos. Volte e selecione o veículo novamente.');
+      return;
+    }
     submittedRef.current = true;
 
     async function submit() {
       try {
-        const placa = store.placa;
         const fotosUris = store.fotos;
+        const hodometroNum = store.hodometro ? parseInt(store.hodometro) : undefined;
 
-        const veiculo = await getVeiculoByPlaca(placa);
-        const novaOS = await createOS({
-          placa,
-          frota: veiculo?.frota ?? '—',
+        const novaOS = await createOS(Object.fromEntries(Object.entries({
+          veiculoId:             store.veiculoId || undefined,
+          placa:                 store.placa || undefined,
+          frota:                 store.frota || '—',
           condutorId:            currentUser?.uid ?? '',
           condutorNome:          currentUser?.nome ?? '',
           condutorPhotoURL:      currentUser?.photoURL ?? null,
           condutorDepartamento:  currentUser?.departamento,
-          hodometro: parseInt(store.hodometro) || 0,
-          servicos: store.servicosSelecionados,
-          descricao: store.descricao || undefined,
-          cidade: store.cidade,
-          dataDesejada: store.dataDesejada || undefined,
-          horario: store.horario || undefined,
-          observacoes: store.observacoes || undefined,
-        });
+          hodometro:             hodometroNum,
+          servicos:              store.servicosSelecionados,
+          descricao:             store.descricao || undefined,
+          cidade:                store.cidade,
+          dataDesejada:          store.dataDesejada || undefined,
+          horario:               store.horario || undefined,
+          observacoes:           store.observacoes || undefined,
+        }).filter(([, v]) => v !== undefined)) as any);
 
         let fotosFalharam = false;
         if (fotosUris.length > 0) {

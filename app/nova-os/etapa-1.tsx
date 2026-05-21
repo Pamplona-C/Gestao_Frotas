@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Text, TextInput, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,52 +15,73 @@ import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useFocusEffect } from '@react-navigation/native';
 import { StepperHeader } from '../../components/StepperHeader';
 import { SemInternet } from '../../components/SemInternet';
 import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
 import { useNovaOSStore } from '../../store/novaOS.store';
+import { useAuthStore } from '../../store/auth.store';
 import { useConectividade } from '../../hooks/useConectividade';
-import { getVeiculoByPlaca } from '../../services/veiculo.service';
-import { Veiculo } from '../../types';
+import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
+import { Vinculo } from '../../types';
 import { Colors } from '../../constants/colors';
 
 const schema = z.object({
-  placa: z
-    .string()
-    .min(7, 'Placa inválida')
-    .regex(/^[A-Z]{3}[-]?\d{4}$|^[A-Z]{3}\d[A-Z]\d{2}$/i, 'Formato: ABC-1234 ou ABC1D23'),
-  hodometro: z.string().min(1, 'Informe o hodômetro').regex(/^\d+$/, 'Apenas números'),
-  cidade: z.string().min(2, 'Selecione uma cidade'),
+  hodometro: z.string().optional(),
+  cidade:    z.string().min(2, 'Selecione uma cidade'),
 });
 type FormData = z.infer<typeof schema>;
 
 export default function Etapa1() {
   const router = useRouter();
   const online = useConectividade();
-  const { placa: storedPlaca, hodometro: storedHod, cidade: storedCidade, setPlaca, setHodometro, setCidade } = useNovaOSStore();
+  const { currentUser } = useAuthStore();
+  const store = useNovaOSStore();
 
-  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
+  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [selecionado, setSelecionado] = useState<Vinculo | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentUser?.uid) return;
+      const unsub = subscribeToVinculosByCondutorId(currentUser.uid, (all) => {
+        const disponiveis = all.filter(
+          (v) => v.status === 'ativo' && !!v.checklistEntradaId,
+        );
+        setVinculos(disponiveis);
+        setCarregando(false);
+        // Re-selecionar se já havia seleção (store preenchido)
+        if (store.veiculoId) {
+          const match = disponiveis.find((v) => v.veiculoId === store.veiculoId);
+          if (match) setSelecionado(match);
+        }
+      });
+      return unsub;
+    }, [currentUser?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { placa: storedPlaca, hodometro: storedHod, cidade: storedCidade },
+    defaultValues: {
+      hodometro: store.hodometro,
+      cidade:    store.cidade,
+    },
   });
 
-  const placaWatch = watch('placa');
-  const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
-
-  useEffect(() => {
-    if (!placaWatch || placaWatch.length < 7) { setVeiculo(null); return; }
-    let mounted = true;
-    const timer = setTimeout(() => {
-      getVeiculoByPlaca(placaWatch).then((v) => { if (mounted) setVeiculo(v); });
-    }, 400);
-    return () => { mounted = false; clearTimeout(timer); };
-  }, [placaWatch]);
+  const isMoto = selecionado?.veiculoTipo === 'moto';
 
   const onNext = (data: FormData) => {
-    if (veiculo && !veiculo.ativo) return;
-    setPlaca(data.placa.toUpperCase());
-    setHodometro(data.hodometro);
-    setCidade(data.cidade);
+    if (!selecionado) return;
+    if (!isMoto && !data.hodometro) return;
+
+    store.setVeiculoId(selecionado.veiculoId);
+    store.setVeiculoTipo(selecionado.veiculoTipo);
+    store.setPlaca(selecionado.veiculoPlaca ?? '');
+    store.setFrota(selecionado.veiculoFrota);
+    store.setHodometro(data.hodometro ?? '');
+    store.setCidade(data.cidade);
+
     router.push('/nova-os/etapa-2');
   };
 
@@ -68,7 +90,6 @@ export default function Etapa1() {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        {/* Back + stepper */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -80,48 +101,56 @@ export default function Etapa1() {
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text variant="headlineSmall" style={styles.heading}>Identificação do veículo</Text>
-          <Text variant="bodyMedium" style={styles.sub}>Informe os dados do veículo</Text>
+          <Text variant="bodyMedium" style={styles.sub}>Selecione o veículo que precisa de atendimento</Text>
 
-          {/* Placa */}
-          <View style={styles.field}>
-            <Controller
-              control={control}
-              name="placa"
-              render={({ field: { value, onChange, onBlur } }) => (
-                <TextInput
-                  label="Placa do veículo"
-                  mode="outlined"
-                  value={value}
-                  onChangeText={(t) => onChange(t.toUpperCase())}
-                  onBlur={onBlur}
-                  autoCapitalize="characters"
-                  placeholder="ABC-1234"
-                  error={!!errors.placa}
-                />
-              )}
-            />
-            {errors.placa && <Text style={styles.err}>{errors.placa.message}</Text>}
-            {veiculo && veiculo.ativo ? (
-              <Surface style={styles.veiculoInfo} elevation={0}>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.accent} />
-                <Text style={styles.veiculoText}>
-                  {veiculo.modelo} · {veiculo.ano} · Frota {veiculo.frota}
-                </Text>
-              </Surface>
-            ) : veiculo && !veiculo.ativo ? (
-              <Surface style={styles.veiculoInativo} elevation={0}>
-                <Ionicons name="ban-outline" size={16} color="#DC2626" />
-                <Text style={styles.veiculoInativoText}>
-                  Veículo inativo — não é possível abrir OS
-                </Text>
-              </Surface>
-            ) : placaWatch && placaWatch.length >= 7 ? (
-              <View style={styles.veiculoWarn}>
-                <Ionicons name="alert-circle-outline" size={14} color="#D97706" />
-                <Text style={styles.veiculoWarnText}>Veículo não encontrado na frota</Text>
-              </View>
-            ) : null}
-          </View>
+          {/* Lista de veículos disponíveis */}
+          {carregando ? (
+            <ActivityIndicator color={Colors.primary} style={{ marginVertical: 24 }} />
+          ) : vinculos.length === 0 ? (
+            <Surface style={styles.emptyCard} elevation={0}>
+              <Ionicons name="car-outline" size={40} color={Colors.textHint} />
+              <Text variant="bodyMedium" style={styles.emptyText}>
+                Nenhum veículo disponível.{'\n'}Contate o gestor ou faça o checklist de entrada.
+              </Text>
+            </Surface>
+          ) : (
+            vinculos.map((v) => {
+              const selected = selecionado?.id === v.id;
+              return (
+                <TouchableOpacity
+                  key={v.id}
+                  onPress={() => setSelecionado(v)}
+                  activeOpacity={0.7}
+                >
+                  <Surface
+                    style={[styles.veiculoCard, selected && styles.veiculoCardSelected]}
+                    elevation={selected ? 2 : 1}
+                  >
+                    <View style={styles.veiculoCardInner}>
+                      <View style={[styles.tipoBadge, v.veiculoTipo === 'moto' && styles.tipoBadgeMoto]}>
+                        <Ionicons
+                          name={v.veiculoTipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+                          size={13}
+                          color={v.veiculoTipo === 'moto' ? '#7C3AED' : Colors.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="bodyMedium" style={styles.veiculoNome}>
+                          {v.veiculoMarca} {v.veiculoModelo}
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+                          Frota {v.veiculoFrota}{v.veiculoPlaca ? ` · ${v.veiculoPlaca}` : ''}
+                        </Text>
+                      </View>
+                      {selected && (
+                        <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                      )}
+                    </View>
+                  </Surface>
+                </TouchableOpacity>
+              );
+            })
+          )}
 
           {/* Hodômetro */}
           <View style={styles.field}>
@@ -130,7 +159,7 @@ export default function Etapa1() {
               name="hodometro"
               render={({ field: { value, onChange, onBlur } }) => (
                 <TextInput
-                  label="Hodômetro (km)"
+                  label={isMoto ? 'Hodômetro (km) — opcional' : 'Hodômetro (km)'}
                   mode="outlined"
                   value={value}
                   onChangeText={onChange}
@@ -144,7 +173,7 @@ export default function Etapa1() {
             {errors.hodometro && <Text style={styles.err}>{errors.hodometro.message}</Text>}
           </View>
 
-          {/* Cidade autocomplete */}
+          {/* Cidade */}
           <View style={styles.field}>
             <Controller
               control={control}
@@ -153,7 +182,7 @@ export default function Etapa1() {
                 <CidadeAutocomplete
                   label="Cidade do atendimento"
                   value={value}
-                  onChange={(c) => { onChange(c); setCidade(c); }}
+                  onChange={(c) => { onChange(c); store.setCidade(c); }}
                   error={!!errors.cidade}
                   errorMessage={errors.cidade?.message}
                 />
@@ -165,6 +194,7 @@ export default function Etapa1() {
             mode="contained"
             style={styles.btn}
             contentStyle={styles.btnContent}
+            disabled={!selecionado || vinculos.length === 0}
             onPress={handleSubmit(onNext)}
           >
             Continuar
@@ -176,42 +206,55 @@ export default function Etapa1() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  topBar: {
+  safe:      { flex: 1, backgroundColor: Colors.background },
+  topBar:    {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 8,
   },
-  topTitle: { fontWeight: '600', color: Colors.textPrimary },
-  scroll: { padding: 20, gap: 4 },
-  heading: { fontWeight: '700', color: Colors.textPrimary },
-  sub: { color: Colors.textSecondary, marginBottom: 8 },
-  field: { marginBottom: 12 },
-  err: { fontSize: 12, color: '#DC2626', marginLeft: 4, marginTop: 2 },
-  veiculoInfo: {
-    flexDirection: 'row',
+  topTitle:  { fontWeight: '600', color: Colors.textPrimary },
+  scroll:    { padding: 20, gap: 4 },
+  heading:   { fontWeight: '700', color: Colors.textPrimary },
+  sub:       { color: Colors.textSecondary, marginBottom: 12 },
+  field:     { marginBottom: 12, marginTop: 8 },
+  err:       { fontSize: 12, color: '#DC2626', marginLeft: 4, marginTop: 2 },
+  emptyCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    backgroundColor: Colors.card,
+    padding: 28,
     alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#F0FDF4',
+    marginBottom: 16,
+    gap: 10,
   },
-  veiculoText: { color: Colors.primary, fontSize: 13, fontWeight: '500' },
-  veiculoWarn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  veiculoWarnText: { color: '#D97706', fontSize: 12 },
-  veiculoInativo: {
-    flexDirection: 'row',
+  emptyText: { color: Colors.textHint, textAlign: 'center', lineHeight: 22 },
+  veiculoCard: {
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: Colors.card,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  veiculoCardSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  veiculoCardInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tipoBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
   },
-  veiculoInativoText: { color: '#DC2626', fontSize: 13, fontWeight: '500' },
-  btn: { marginTop: 24, borderRadius: 10 },
+  tipoBadgeMoto: { backgroundColor: '#F5F3FF' },
+  veiculoNome: { fontWeight: '600', color: Colors.textPrimary },
+  btn:        { marginTop: 16, borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
 });
