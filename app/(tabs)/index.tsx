@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,8 +23,21 @@ import {
   subscribeToAllOS,
 } from '../../services/os.service';
 import { subscribeToAllFornecedores } from '../../services/fornecedor.service';
-import { OrdemServico, OSStatus, Fornecedor } from '../../types';
+import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
+import { OrdemServico, OSStatus, Fornecedor, Vinculo } from '../../types';
 import { Colors } from '../../constants/colors';
+
+type ChecklistStatus = 'pendente_entrada' | 'em_uso' | 'pendente_saida';
+function getChecklistStatus(v: Vinculo): ChecklistStatus {
+  if (!v.checklistEntradaId) return 'pendente_entrada';
+  if (!v.checklistSaidaId)   return 'em_uso';
+  return 'pendente_saida';
+}
+const CHECKLIST_CFG: Record<ChecklistStatus, { label: string; color: string; bg: string; icon: string }> = {
+  pendente_entrada: { label: 'Checklist pendente', color: '#D97706', bg: '#FFFBEB', icon: 'alert-circle-outline' },
+  em_uso:           { label: 'Em uso',             color: '#16A34A', bg: '#F0FDF4', icon: 'checkmark-circle-outline' },
+  pendente_saida:   { label: 'Devolução pendente', color: '#2563EB', bg: '#EFF6FF', icon: 'time-outline' },
+};
 
 // ──────────────── Condutor Home ────────────────
 function CondutorHome() {
@@ -34,6 +47,7 @@ function CondutorHome() {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
+  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -47,7 +61,10 @@ function CondutorHome() {
     const unsubForn = subscribeToAllFornecedores((list) => {
       setFornecedoresMap(new Map(list.map((f) => [f.id, f])));
     });
-    return () => { unsubOS(); unsubForn(); };
+    const unsubVinculos = subscribeToVinculosByCondutorId(currentUser.uid, (all) => {
+      setVinculos(all.filter((v) => v.status === 'ativo'));
+    });
+    return () => { unsubOS(); unsubForn(); unsubVinculos(); };
   }, [currentUser?.uid]);
 
   const onRefresh = useCallback(() => {
@@ -57,12 +74,14 @@ function CondutorHome() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
-  const abertas = ordens.filter((o) => o.status !== 'concluida').length;
-  const initials = currentUser?.nome
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('') ?? '';
+  const abertas = useMemo(
+    () => ordens.filter((o) => o.status !== 'concluida').length,
+    [ordens],
+  );
+  const initials = useMemo(
+    () => currentUser?.nome.split(' ').slice(0, 2).map((n) => n[0]).join('') ?? '',
+    [currentUser?.nome],
+  );
 
   const listHeader = (
     <>
@@ -102,7 +121,83 @@ function CondutorHome() {
         <MetricCard label="Em aberto" value={abertas} accent />
       </View>
 
-      <Text variant="titleSmall" style={styles.sectionTitle}>
+      {/* ── Meus Veículos ── */}
+      <View style={styles.sectionRow}>
+        <Text variant="titleSmall" style={styles.sectionTitle}>Meus veículos</Text>
+        {vinculos.length > 0 && (
+          <TouchableOpacity onPress={() => router.push('/meus-veiculos' as any)}>
+            <Text style={styles.sectionLink}>Ver todos</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {vinculos.length === 0 ? (
+        <Surface style={styles.veiculoEmpty} elevation={0}>
+          <Ionicons name="car-outline" size={20} color={Colors.textHint} />
+          <Text variant="bodySmall" style={{ color: Colors.textHint }}>
+            Nenhum veículo vinculado — contate o gestor
+          </Text>
+        </Surface>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.veiculoScroll}
+        >
+          {vinculos.map((v) => {
+            const st  = getChecklistStatus(v);
+            const cfg = CHECKLIST_CFG[st];
+            return (
+              <TouchableOpacity
+                key={v.id}
+                activeOpacity={0.85}
+                onPress={() =>
+                  router.push(
+                    `/checklist/${v.id}/${st === 'pendente_entrada' ? 'entrada' : 'saida'}` as any,
+                  )
+                }
+                disabled={st === 'em_uso'}
+              >
+                <Surface style={styles.veiculoCard} elevation={1}>
+                  {/* Tipo badge */}
+                  <View style={[styles.veiculoTipoBadge, v.veiculoTipo === 'moto' && styles.veiculoTipoBadgeMoto]}>
+                    <Ionicons
+                      name={v.veiculoTipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+                      size={14}
+                      color={v.veiculoTipo === 'moto' ? '#7C3AED' : Colors.primary}
+                    />
+                  </View>
+                  <Text style={styles.veiculoNome} numberOfLines={1}>
+                    {v.veiculoMarca} {v.veiculoModelo}
+                  </Text>
+                  <Text style={styles.veiculoFrota}>Frota {v.veiculoFrota}</Text>
+                  {v.veiculoPlaca ? (
+                    <Text style={styles.veiculoPlaca}>{v.veiculoPlaca}</Text>
+                  ) : null}
+                  {/* Status */}
+                  <View style={[styles.veiculoStatus, { backgroundColor: cfg.bg }]}>
+                    <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                    <Text style={[styles.veiculoStatusText, { color: cfg.color }]}>
+                      {cfg.label}
+                    </Text>
+                  </View>
+                  {/* Ação */}
+                  {st !== 'em_uso' && (
+                    <View style={styles.veiculoAction}>
+                      <Ionicons name="camera-outline" size={13} color={Colors.primary} />
+                      <Text style={styles.veiculoActionText}>
+                        {st === 'pendente_entrada' ? 'Fazer entrada' : 'Fazer saída'}
+                      </Text>
+                    </View>
+                  )}
+                </Surface>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      <Text variant="titleSmall" style={[styles.sectionTitle, { marginTop: 8 }]}>
         Minhas ordens de serviço
       </Text>
     </>
@@ -123,6 +218,9 @@ function CondutorHome() {
         ListHeaderComponent={listHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        maxToRenderPerBatch={10}
+        windowSize={10}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -190,7 +288,10 @@ function GestorDashboard() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
-  const filtered = filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro);
+  const filtered = useMemo(
+    () => filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro),
+    [filtro, ordens],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -330,10 +431,53 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: Colors.primary,
   },
   metrics: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 20 },
+  sectionRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, marginBottom: 10,
+  },
   sectionTitle: {
     paddingHorizontal: 20, marginBottom: 12,
     color: Colors.textPrimary, fontWeight: '600',
   },
+  sectionLink: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  veiculoEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  veiculoScroll: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
+  veiculoCard: {
+    width: 160,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: Colors.card,
+    gap: 4,
+  },
+  veiculoTipoBadge: {
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#EFF6FF', marginBottom: 4,
+  },
+  veiculoTipoBadgeMoto: { backgroundColor: '#F5F3FF' },
+  veiculoNome: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  veiculoFrota: { fontSize: 11, color: Colors.textSecondary },
+  veiculoPlaca: { fontSize: 11, color: Colors.textSecondary },
+  veiculoStatus: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, marginTop: 6,
+  },
+  veiculoStatusText: { fontSize: 10, fontWeight: '600' },
+  veiculoAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6,
+  },
+  veiculoActionText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
   list: { paddingHorizontal: 20, paddingBottom: 100, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },

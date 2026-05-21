@@ -16,7 +16,7 @@ interface Props {
   showValor?: boolean;
 }
 
-export function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
+export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
   const dataFormatada = format(parseISO(os.criadoEm), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
 
   return (
@@ -62,7 +62,14 @@ export function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
       </Surface>
     </TouchableOpacity>
   );
-}
+}, (prev, next) =>
+  prev.os.id === next.os.id &&
+  prev.os.status === next.os.status &&
+  prev.os.valorTotal === next.os.valorTotal &&
+  prev.os.fornecedorId === next.os.fornecedorId &&
+  prev.fornecedor?.id === next.fornecedor?.id &&
+  prev.showValor === next.showValor
+);
 
 const styles = StyleSheet.create({
   card: {

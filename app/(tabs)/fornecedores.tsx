@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -37,6 +37,7 @@ import {
 } from '../../services/fornecedor.service';
 import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
 import { CidadeAutocomplete } from '../../components/CidadeAutocomplete';
+import { SkeletonList } from '../../components/SkeletonCard';
 import { Colors } from '../../constants/colors';
 
 const CACHE_KEY = 'cache:fornecedores:p1';
@@ -157,13 +158,15 @@ export default function FornecedoresScreen() {
   }, [carregarPrimeiraPagina]);
 
   // ── Agrupamento por cidade ────────────────────────────────────────────────
-  const grouped = fornecedores.reduce<Record<string, Fornecedor[]>>((acc, f) => {
-    (acc[f.cidade] ??= []).push(f);
-    return acc;
-  }, {});
-  const sections = Object.entries(grouped)
-    .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
-    .map(([title, data]) => ({ title, data }));
+  const sections = useMemo(() => {
+    const grouped = fornecedores.reduce<Record<string, Fornecedor[]>>((acc, f) => {
+      (acc[f.cidade] ??= []).push(f);
+      return acc;
+    }, {});
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+      .map(([title, data]) => ({ title, data }));
+  }, [fornecedores]);
 
   // ── CRUD ─────────────────────────────────────────────────────────────────
   const openNovo = () => {
@@ -276,6 +279,9 @@ export default function FornecedoresScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={10}
         onEndReached={carregarMais}
         onEndReachedThreshold={0.3}
         ListFooterComponent={() =>
@@ -295,7 +301,7 @@ export default function FornecedoresScreen() {
         }
         ListEmptyComponent={
           carregando ? (
-            <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
+            <SkeletonList variant="fornecedor" count={5} />
           ) : (
             <View style={styles.empty}>
               <Ionicons name="business-outline" size={48} color={Colors.textHint} />
@@ -307,7 +313,7 @@ export default function FornecedoresScreen() {
         }
       />
 
-      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
+      <FAB icon="plus" color="#FFFFFF" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
 
       <Portal>
         <Modal
@@ -378,7 +384,7 @@ export default function FornecedoresScreen() {
   );
 }
 
-function FornecedorCard({
+const FornecedorCard = React.memo(function FornecedorCard({
   fornecedor,
   onEdit,
   onDelete,
@@ -436,7 +442,11 @@ function FornecedorCard({
       ) : null}
     </Surface>
   );
-}
+}, (prev, next) =>
+  prev.fornecedor.id === next.fornecedor.id &&
+  prev.fornecedor.nome === next.fornecedor.nome &&
+  prev.fornecedor.cidade === next.fornecedor.cidade
+);
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
