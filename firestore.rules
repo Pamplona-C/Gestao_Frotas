@@ -47,6 +47,23 @@ service cloud.firestore {
       allow write: if isGestor();
     }
 
+    // Vínculos condutor↔veículo: gestor cria/encerra; condutor lê e atualiza (checklist)
+    match /vinculos/{id} {
+      allow read:   if isAuthenticated() &&
+        (isGestor() || resource.data.condutorId == request.auth.uid);
+      allow create: if isGestor();
+      allow update: if isGestor() || resource.data.condutorId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Checklists: condutor cria o próprio; leitura autenticada; imutável após criação
+    match /checklists/{id} {
+      allow read:          if isAuthenticated();
+      allow create:        if isAuthenticated() &&
+        request.resource.data.condutorId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // Notificações: cada usuário lê e marca como lida apenas as próprias
     match /notificacoes/{id} {
       allow read:   if isAuthenticated() && request.auth.uid == resource.data.userId;
