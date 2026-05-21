@@ -1,10 +1,28 @@
 import {
   ref,
+  uploadBytes,
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
 } from 'firebase/storage';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { storage } from '../lib/firebase';
+
+/**
+ * Redimensiona e comprime uma foto local antes do upload.
+ * Fotos de câmera chegam em 4–8 MB; após isso ficam em ~150–300 KB.
+ */
+export async function prepararFotoParaUpload(
+  uri: string,
+  maxWidth = 1280,
+): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: maxWidth } }],
+    { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return result.uri;
+}
 
 
 /**
@@ -20,7 +38,8 @@ async function uploadFotoOSUnica(
   timestamp: number,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const response = await fetch(localUri);
+  const comprimida = await prepararFotoParaUpload(localUri);
+  const response = await fetch(comprimida);
   const blob = await response.blob();
 
   const path = `os-fotos/${osId}/${timestamp}_${index}`;
@@ -84,6 +103,41 @@ export async function uploadFotosOS(
         notifyAggregated();
       }),
     ),
+  );
+}
+
+/**
+ * Faz upload de múltiplas fotos em paralelo para um path genérico.
+ *
+ * @param localUris  Array de URIs locais
+ * @param basePath   Caminho base no Storage (ex: "checklists/{id}/entrada")
+ * @param onProgress Callback com % agregado de progresso (0–100)
+ * @returns          Array de URLs HTTPS permanentes, na mesma ordem dos localUris
+ */
+export async function uploadFotosGenerica(
+  localUris: string[],
+  basePath: string,
+  onProgress?: (percent: number) => void,
+): Promise<string[]> {
+  if (localUris.length === 0) return [];
+
+  const timestamp = Date.now();
+  let concluidos = 0;
+
+  return Promise.all(
+    localUris.map(async (uri, i) => {
+      const comprimida = await prepararFotoParaUpload(uri);
+      const response = await fetch(comprimida);
+      const blob = await response.blob();
+      const storageRef = ref(storage, `${basePath}/${timestamp}_${i}`);
+      const snapshot = await uploadBytes(storageRef, blob, {
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=604800',
+      });
+      concluidos++;
+      onProgress?.(Math.round((concluidos / localUris.length) * 100));
+      return getDownloadURL(snapshot.ref);
+    }),
   );
 }
 
