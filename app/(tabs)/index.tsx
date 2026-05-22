@@ -243,6 +243,7 @@ function CondutorHome() {
 
       <FAB
         icon={online ? 'plus' : 'cloud-off-outline'}
+        color="#FFFFFF"
         style={[styles.fab, { bottom: bottomInset + 80 }, !online && styles.fabOffline]}
         onPress={() => router.push('/nova-os/etapa-1')}
         label="Nova OS"
