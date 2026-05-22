@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,9 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { OrdemServico, OSStatus, Fornecedor, CatalogoServico, ServicoRealizado } from '../../../types';
-import { subscribeToOSById, updateOS, appendStatusEntry } from '../../../services/os.service';
-import { subscribeToAllFornecedores } from '../../../services/fornecedor.service';
+import { arrayUnion, doc, writeBatch } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
+import { subscribeToOSById } from '../../../services/os.service';
+import { getAllFornecedores } from '../../../services/fornecedor.service';
 import { getServicosAtivos } from '../../../services/catalogo.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -47,13 +49,17 @@ function TipoBadge({ tipo }: { tipo: 'preventiva' | 'corretiva' }) {
   );
 }
 
+// Normaliza cidade para comparação sem acento e sem sufixo " - UF"
+const normalizaCidade = (c: string) =>
+  c.split(' - ')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 export default function GerenciarOSScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { currentUser } = useAuthStore();
 
   const [os, setOS] = useState<OrdemServico | null>(null);
-  const [todos, setTodos] = useState<Fornecedor[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<OSStatus | null>(null);
   const [nota, setNota] = useState('');
@@ -64,34 +70,51 @@ export default function GerenciarOSScreen() {
   const [catalogoItems, setCatalogoItems] = useState<CatalogoServico[]>([]);
   const [catalogoBusca, setCatalogoBusca] = useState('');
 
-  const normCidade = (c: string) =>
-    c.split(' - ')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const cidadeOS = os?.cidade ? normCidade(os.cidade) : '';
-  const fornecedoresFiltrados = cidadeOS
-    ? todos.filter((f) => normCidade(f.cidade) === cidadeOS)
-    : [];
+  // Ref para aplicar dados do Firestore só no primeiro snapshot — evita sobrescrever edições do usuário
+  const initialized = useRef(false);
+
+  // Catálogo: busca uma única vez no mount, não a cada focus
+  useEffect(() => {
+    let alive = true;
+    getServicosAtivos().then((items) => { if (alive) setCatalogoItems(items); });
+    return () => { alive = false; };
+  }, []);
+
+  // Fornecedores: one-shot — não precisam de listener em tempo real aqui
+  useEffect(() => {
+    let alive = true;
+    getAllFornecedores().then((items) => { if (alive) setFornecedores(items); });
+    return () => { alive = false; };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
+      initialized.current = false;
       const unsubOS = subscribeToOSById(id!, (data) => {
         if (!data) return;
         setOS(data);
         setSelectedFornecedor((prev) => prev ?? data.fornecedorId ?? null);
         setSelectedStatus((prev) => prev ?? data.status);
         setNota((prev) => prev || (data.notaInterna ?? ''));
-        setServicosRealizados((prev) =>
-          prev.length > 0 ? prev : (data.servicosRealizados ?? [])
-        );
+        // Aplica serviços do Firestore apenas no primeiro disparo — preserva edições locais
+        if (!initialized.current) {
+          setServicosRealizados(data.servicosRealizados ?? []);
+          initialized.current = true;
+        }
       });
-
-      const unsubForn = subscribeToAllFornecedores((fornecedores) => {
-        setTodos(fornecedores);
-      });
-
-      getServicosAtivos().then(setCatalogoItems);
-
-      return () => { unsubOS(); unsubForn(); };
+      return () => { unsubOS(); };
     }, [id])
+  );
+
+  // Derived state memoizado — evita filter/reduce em todo render
+  const cidadeOS = useMemo(
+    () => (os?.cidade ? normalizaCidade(os.cidade) : ''),
+    [os?.cidade],
+  );
+
+  const fornecedoresFiltrados = useMemo(
+    () => (cidadeOS ? fornecedores.filter((f) => normalizaCidade(f.cidade) === cidadeOS) : []),
+    [fornecedores, cidadeOS],
   );
 
   const openCatalogo = () => {
@@ -121,36 +144,41 @@ export default function GerenciarOSScreen() {
     );
   };
 
-  const valorTotal       = servicosRealizados.reduce((acc, s) => acc + s.valor, 0);
-  const gastoPreventiva  = servicosRealizados.filter((s) => s.tipo === 'preventiva').reduce((acc, s) => acc + s.valor, 0);
-  const gastoCorretiva   = servicosRealizados.filter((s) => s.tipo === 'corretiva').reduce((acc, s) => acc + s.valor, 0);
+  const { valorTotal, gastoPreventiva, gastoCorretiva } = useMemo(() => ({
+    valorTotal:      servicosRealizados.reduce((acc, s) => acc + s.valor, 0),
+    gastoPreventiva: servicosRealizados.filter((s) => s.tipo === 'preventiva').reduce((acc, s) => acc + s.valor, 0),
+    gastoCorretiva:  servicosRealizados.filter((s) => s.tipo === 'corretiva').reduce((acc, s) => acc + s.valor, 0),
+  }), [servicosRealizados]);
 
   const onSave = async () => {
     if (!os || !currentUser) return;
     const novoStatus = selectedStatus ?? os.status;
-    const ops: Promise<void>[] = [
-      updateOS(os.id, {
-        status:             novoStatus,
-        fornecedorId:       selectedFornecedor ?? undefined,
-        notaInterna:        nota || undefined,
-        gestorId:           currentUser.uid,
-        gestorNome:         currentUser.nome,
-        gestorPhotoURL:     currentUser.photoURL ?? null,
-        gestorDepartamento: currentUser.departamento,
-        servicosRealizados: servicosRealizados.length > 0 ? servicosRealizados : undefined,
-        valorTotal:         servicosRealizados.length > 0 ? valorTotal        : undefined,
-        gastoPreventiva:    servicosRealizados.length > 0 ? gastoPreventiva   : undefined,
-        gastoCorretiva:     servicosRealizados.length > 0 ? gastoCorretiva    : undefined,
+    const temServicos = servicosRealizados.length > 0;
+
+    const updates = Object.fromEntries(Object.entries({
+      status:             novoStatus,
+      fornecedorId:       selectedFornecedor ?? undefined,
+      notaInterna:        nota || undefined,
+      gestorId:           currentUser.uid,
+      gestorNome:         currentUser.nome,
+      gestorPhotoURL:     currentUser.photoURL ?? null,
+      gestorDepartamento: currentUser.departamento,
+      servicosRealizados: temServicos ? servicosRealizados : undefined,
+      valorTotal:         temServicos ? valorTotal          : undefined,
+      gastoPreventiva:    temServicos ? gastoPreventiva     : undefined,
+      gastoCorretiva:     temServicos ? gastoCorretiva      : undefined,
+      ...(novoStatus !== os.status && {
+        statusHistory: arrayUnion({
+          status:    novoStatus,
+          changedAt: new Date().toISOString(),
+          changedBy: currentUser.nome,
+        } satisfies StatusEntry),
       }),
-    ];
-    if (novoStatus !== os.status) {
-      ops.push(appendStatusEntry(os.id, {
-        status:    novoStatus,
-        changedAt: new Date().toISOString(),
-        changedBy: currentUser.nome,
-      }));
-    }
-    await Promise.all(ops);
+    }).filter(([, v]) => v !== undefined));
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'ordens-servico', os.id), updates);
+    await batch.commit();
     router.back();
   };
 
@@ -165,7 +193,7 @@ export default function GerenciarOSScreen() {
   }
 
   const semMatchDeCidade = os.cidade != null && fornecedoresFiltrados.length === 0;
-  const listaExibida = semMatchDeCidade ? todos : fornecedoresFiltrados;
+  const listaExibida = semMatchDeCidade ? fornecedores : fornecedoresFiltrados;
   const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
   const veiculoLabel = veiculoNome || `Frota ${os.frota}`;
 
