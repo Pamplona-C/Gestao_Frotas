@@ -139,7 +139,7 @@ export async function createOS(
   const firstEntry: StatusEntry = {
     status: 'nova',
     changedAt: new Date().toISOString(),
-    changedBy: os.condutorNome,
+    changedBy: os.gestorNome ?? os.condutorNome,
   };
   const payload = Object.fromEntries(
     Object.entries({

@@ -26,6 +26,14 @@ import {
 import { app, auth, db } from '../lib/firebase';
 import { AppUser, UserPerfil, UserProfile } from '../types';
 
+function normalizeSearchText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 // ── Erros tipados ──────────────────────────────────────────────────────────────
 
 export interface AuthServiceError {
@@ -73,6 +81,8 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
     departamento: d.departamento ?? '',
     photoURL:     d.photoURL     ?? null,
     ativo:        d.ativo,
+    nomeBusca:    d.nomeBusca,
+    departamentoBusca: d.departamentoBusca,
   };
 }
 
@@ -83,6 +93,8 @@ export async function createUserProfile(
 ): Promise<void> {
   await setDoc(doc(db, 'usuarios', uid), {
     ...data,
+    nomeBusca:         normalizeSearchText(data.nome),
+    departamentoBusca: normalizeSearchText(data.departamento),
     photoURL:  null,
     criadoEm:  serverTimestamp(),
   });
@@ -179,6 +191,7 @@ export async function createUserAccount(data: {
       email:        data.email,
       perfil:       data.perfil,
       departamento: data.departamento,
+      ativo:        true,
     });
   } finally {
     await deleteApp(secondaryApp);

@@ -104,7 +104,7 @@ function CondutorHome() {
         </View>
         <View style={styles.headerRight}>
           <NotificationBell />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push('/perfil')} activeOpacity={0.8}>
             {currentUser?.photoURL ? (
               <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
             ) : (
@@ -304,7 +304,7 @@ function GestorDashboard() {
         </View>
         <View style={styles.headerRight}>
           <NotificationBell />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push('/perfil')} activeOpacity={0.8}>
             {currentUser?.photoURL ? (
               <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
             ) : (

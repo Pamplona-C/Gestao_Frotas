@@ -107,6 +107,12 @@ export default function ConfiguracoesScreen() {
                 sub="Gerenciar serviços e peças"
                 onPress={() => router.push('/catalogo-servicos' as any)}
               />
+              <OptionRow
+                icon="bar-chart-outline"
+                label="Relatórios"
+                sub="Auditoria de checklists"
+                onPress={() => router.push('/relatorios' as any)}
+              />
             </Surface>
           </>
         )}

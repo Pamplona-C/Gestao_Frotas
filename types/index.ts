@@ -27,6 +27,8 @@ export interface AppUser {
   departamento: string;
   photoURL?:    string | null;
   ativo?:       boolean;
+  nomeBusca?:   string;
+  departamentoBusca?: string;
 }
 
 /** Documento Firestore /usuarios/{uid} */
@@ -38,6 +40,8 @@ export interface UserProfile {
   photoURL?:      string | null;
   fcmToken?:      string | null;
   ativo?:         boolean;
+  nomeBusca?:     string;
+  departamentoBusca?: string;
 }
 
 export type VeiculoTipo = 'carro' | 'moto';
@@ -108,6 +112,7 @@ export interface Notificacao {
 }
 
 export type VinculoStatus = 'ativo' | 'inativo';
+export type ChecklistPendencia = 'entrada' | 'saida' | null;
 
 export interface Vinculo {
   id:                  string;
@@ -121,6 +126,7 @@ export interface Vinculo {
   veiculoTipo:         VeiculoTipo;
   checklistEntradaId?: string;
   checklistSaidaId?:   string;
+  pendenciaChecklist?: ChecklistPendencia;
   status:              VinculoStatus;
   criadoEm:            string;
   gestorId:            string;
@@ -142,6 +148,11 @@ export interface Checklist {
 export interface OrdemServico {
   id: string;
   veiculoId?: string;
+  origemChecklistId?: string;
+  origemVinculoId?: string;
+  veiculoMarca?: string;
+  veiculoModelo?: string;
+  veiculoTipo?: VeiculoTipo;
   placa?: string;
   frota: string;
   condutorId: string;

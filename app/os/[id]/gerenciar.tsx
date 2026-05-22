@@ -1,26 +1,28 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput as RNTextInput,
-  Modal,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { Text, Button, Surface, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { OrdemServico, OSStatus, Fornecedor, CatalogoServico, ServicoRealizado } from '../../../types';
-import { subscribeToOSById, updateOS, appendStatusEntry } from '../../../services/os.service';
-import { subscribeToAllFornecedores } from '../../../services/fornecedor.service';
+import { arrayUnion, doc, writeBatch } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
+import { subscribeToOSById } from '../../../services/os.service';
+import { getAllFornecedores } from '../../../services/fornecedor.service';
 import { getServicosAtivos } from '../../../services/catalogo.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { StatusBadge } from '../../../components/StatusBadge';
+
+import { BottomSheet } from '../../../components/BottomSheet';
 import { Colors } from '../../../constants/colors';
 
 const STATUS_OPTIONS: { key: OSStatus; label: string; icon: string }[] = [
@@ -47,13 +49,17 @@ function TipoBadge({ tipo }: { tipo: 'preventiva' | 'corretiva' }) {
   );
 }
 
+// Normaliza cidade para comparação sem acento e sem sufixo " - UF"
+const normalizaCidade = (c: string) =>
+  c.split(' - ')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 export default function GerenciarOSScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { currentUser } = useAuthStore();
 
   const [os, setOS] = useState<OrdemServico | null>(null);
-  const [todos, setTodos] = useState<Fornecedor[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<OSStatus | null>(null);
   const [nota, setNota] = useState('');
@@ -63,35 +69,53 @@ export default function GerenciarOSScreen() {
   const [catalogoModal, setCatalogoModal] = useState(false);
   const [catalogoItems, setCatalogoItems] = useState<CatalogoServico[]>([]);
   const [catalogoBusca, setCatalogoBusca] = useState('');
+  const [buscaFornecedor, setBuscaFornecedor] = useState('');
 
-  const normCidade = (c: string) =>
-    c.split(' - ')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const cidadeOS = os?.cidade ? normCidade(os.cidade) : '';
-  const fornecedoresFiltrados = cidadeOS
-    ? todos.filter((f) => normCidade(f.cidade) === cidadeOS)
-    : [];
+  // Ref para aplicar dados do Firestore só no primeiro snapshot — evita sobrescrever edições do usuário
+  const initialized = useRef(false);
+
+  // Catálogo: busca uma única vez no mount, não a cada focus
+  useEffect(() => {
+    let alive = true;
+    getServicosAtivos().then((items) => { if (alive) setCatalogoItems(items); });
+    return () => { alive = false; };
+  }, []);
+
+  // Fornecedores: one-shot — não precisam de listener em tempo real aqui
+  useEffect(() => {
+    let alive = true;
+    getAllFornecedores().then((items) => { if (alive) setFornecedores(items); });
+    return () => { alive = false; };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
+      initialized.current = false;
       const unsubOS = subscribeToOSById(id!, (data) => {
         if (!data) return;
         setOS(data);
         setSelectedFornecedor((prev) => prev ?? data.fornecedorId ?? null);
         setSelectedStatus((prev) => prev ?? data.status);
         setNota((prev) => prev || (data.notaInterna ?? ''));
-        setServicosRealizados((prev) =>
-          prev.length > 0 ? prev : (data.servicosRealizados ?? [])
-        );
+        // Aplica serviços do Firestore apenas no primeiro disparo — preserva edições locais
+        if (!initialized.current) {
+          setServicosRealizados(data.servicosRealizados ?? []);
+          initialized.current = true;
+        }
       });
-
-      const unsubForn = subscribeToAllFornecedores((fornecedores) => {
-        setTodos(fornecedores);
-      });
-
-      getServicosAtivos().then(setCatalogoItems);
-
-      return () => { unsubOS(); unsubForn(); };
+      return () => { unsubOS(); };
     }, [id])
+  );
+
+  // Derived state memoizado — evita filter/reduce em todo render
+  const cidadeOS = useMemo(
+    () => (os?.cidade ? normalizaCidade(os.cidade) : ''),
+    [os?.cidade],
+  );
+
+  const fornecedoresFiltrados = useMemo(
+    () => (cidadeOS ? fornecedores.filter((f) => normalizaCidade(f.cidade) === cidadeOS) : []),
+    [fornecedores, cidadeOS],
   );
 
   const openCatalogo = () => {
@@ -121,38 +145,67 @@ export default function GerenciarOSScreen() {
     );
   };
 
-  const valorTotal       = servicosRealizados.reduce((acc, s) => acc + s.valor, 0);
-  const gastoPreventiva  = servicosRealizados.filter((s) => s.tipo === 'preventiva').reduce((acc, s) => acc + s.valor, 0);
-  const gastoCorretiva   = servicosRealizados.filter((s) => s.tipo === 'corretiva').reduce((acc, s) => acc + s.valor, 0);
+  const { valorTotal, gastoPreventiva, gastoCorretiva } = useMemo(() => ({
+    valorTotal:      servicosRealizados.reduce((acc, s) => acc + s.valor, 0),
+    gastoPreventiva: servicosRealizados.filter((s) => s.tipo === 'preventiva').reduce((acc, s) => acc + s.valor, 0),
+    gastoCorretiva:  servicosRealizados.filter((s) => s.tipo === 'corretiva').reduce((acc, s) => acc + s.valor, 0),
+  }), [servicosRealizados]);
 
   const onSave = async () => {
     if (!os || !currentUser) return;
     const novoStatus = selectedStatus ?? os.status;
-    const ops: Promise<void>[] = [
-      updateOS(os.id, {
-        status:             novoStatus,
-        fornecedorId:       selectedFornecedor ?? undefined,
-        notaInterna:        nota || undefined,
-        gestorId:           currentUser.uid,
-        gestorNome:         currentUser.nome,
-        gestorPhotoURL:     currentUser.photoURL ?? null,
-        gestorDepartamento: currentUser.departamento,
-        servicosRealizados: servicosRealizados.length > 0 ? servicosRealizados : undefined,
-        valorTotal:         servicosRealizados.length > 0 ? valorTotal        : undefined,
-        gastoPreventiva:    servicosRealizados.length > 0 ? gastoPreventiva   : undefined,
-        gastoCorretiva:     servicosRealizados.length > 0 ? gastoCorretiva    : undefined,
+    const temServicos = servicosRealizados.length > 0;
+
+    const updates = Object.fromEntries(Object.entries({
+      status:             novoStatus,
+      fornecedorId:       selectedFornecedor ?? undefined,
+      notaInterna:        nota || undefined,
+      gestorId:           currentUser.uid,
+      gestorNome:         currentUser.nome,
+      gestorPhotoURL:     currentUser.photoURL ?? null,
+      gestorDepartamento: currentUser.departamento,
+      servicosRealizados: temServicos ? servicosRealizados : undefined,
+      valorTotal:         temServicos ? valorTotal          : undefined,
+      gastoPreventiva:    temServicos ? gastoPreventiva     : undefined,
+      gastoCorretiva:     temServicos ? gastoCorretiva      : undefined,
+      ...(novoStatus !== os.status && {
+        statusHistory: arrayUnion({
+          status:    novoStatus,
+          changedAt: new Date().toISOString(),
+          changedBy: currentUser.nome,
+        } satisfies StatusEntry),
       }),
-    ];
-    if (novoStatus !== os.status) {
-      ops.push(appendStatusEntry(os.id, {
-        status:    novoStatus,
-        changedAt: new Date().toISOString(),
-        changedBy: currentUser.nome,
-      }));
-    }
-    await Promise.all(ops);
+    }).filter(([, v]) => v !== undefined));
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'ordens-servico', os.id), updates);
+    await batch.commit();
     router.back();
   };
+
+  // Busca + limite de fornecedores — hooks antes do early return
+  const semMatchDeCidade = os?.cidade != null && fornecedoresFiltrados.length === 0;
+  const baseList = semMatchDeCidade ? fornecedores : fornecedoresFiltrados;
+
+  const FORN_LIMIT = 5;
+  const { listaVisivelForn, totalBaseForn } = useMemo(() => {
+    const q = buscaFornecedor.toLowerCase().trim();
+    const filtered = q
+      ? baseList.filter((f) =>
+          f.nome.toLowerCase().includes(q) || f.cidade.toLowerCase().includes(q)
+        )
+      : baseList;
+
+    if (q) return { listaVisivelForn: filtered, totalBaseForn: filtered.length };
+
+    // Sem busca: limita a FORN_LIMIT, mas garante que o selecionado aparece
+    const sliced = filtered.slice(0, FORN_LIMIT);
+    if (selectedFornecedor && !sliced.find((f) => f.id === selectedFornecedor)) {
+      const sel = filtered.find((f) => f.id === selectedFornecedor);
+      if (sel) return { listaVisivelForn: [sel, ...sliced.slice(0, FORN_LIMIT - 1)], totalBaseForn: filtered.length };
+    }
+    return { listaVisivelForn: sliced, totalBaseForn: filtered.length };
+  }, [baseList, buscaFornecedor, selectedFornecedor]);
 
   if (!os) {
     return (
@@ -163,12 +216,15 @@ export default function GerenciarOSScreen() {
       </SafeAreaView>
     );
   }
-
-  const semMatchDeCidade = os.cidade != null && fornecedoresFiltrados.length === 0;
-  const listaExibida = semMatchDeCidade ? todos : fornecedoresFiltrados;
+  const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
+  const veiculoLabel = veiculoNome || `Frota ${os.frota}`;
 
   return (
     <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -178,10 +234,9 @@ export default function GerenciarOSScreen() {
       </View>
 
       <View style={styles.currentStatus}>
-        <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>
-          {os.id.toUpperCase()} · {os.placa}
+        <Text variant="labelSmall" style={styles.currentStatusText} numberOfLines={1}>
+          {os.id.toUpperCase()} · {veiculoLabel}{os.placa ? ` · ${os.placa}` : ''}
         </Text>
-        <StatusBadge status={os.status} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -238,38 +293,72 @@ export default function GerenciarOSScreen() {
               </Text>
             </View>
           )}
+
+          {/* Busca */}
+          <View style={styles.fornBuscaWrapper}>
+            <Ionicons name="search-outline" size={15} color={Colors.textHint} />
+            <RNTextInput
+              value={buscaFornecedor}
+              onChangeText={setBuscaFornecedor}
+              placeholder="Buscar por nome ou cidade…"
+              placeholderTextColor={Colors.textHint}
+              style={styles.fornBuscaInput}
+              returnKeyType="search"
+            />
+            {buscaFornecedor.length > 0 && (
+              <TouchableOpacity onPress={() => setBuscaFornecedor('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color={Colors.textHint} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           <Divider style={{ marginBottom: 10 }} />
 
-          {listaExibida.map((f) => {
-            const active = selectedFornecedor === f.id;
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={[styles.fornRow, active && styles.fornRowActive]}
-                onPress={() => setSelectedFornecedor(active ? null : f.id)}
-              >
-                <View style={styles.fornIcon}>
-                  <Ionicons
-                    name={active ? 'business' : 'business-outline'}
-                    size={18}
-                    color={active ? Colors.primary : Colors.textSecondary}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    variant="bodyMedium"
-                    style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
-                  >
-                    {f.nome}
-                  </Text>
-                  <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                    {f.cidade} · {f.horario}
-                  </Text>
-                </View>
-                {active && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-            );
-          })}
+          {listaVisivelForn.length === 0 ? (
+            <Text style={styles.fornVazio}>Nenhum fornecedor encontrado</Text>
+          ) : (
+            listaVisivelForn.map((f) => {
+              const active = selectedFornecedor === f.id;
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.fornRow, active && styles.fornRowActive]}
+                  onPress={() => setSelectedFornecedor(active ? null : f.id)}
+                >
+                  <View style={styles.fornIcon}>
+                    <Ionicons
+                      name={active ? 'business' : 'business-outline'}
+                      size={18}
+                      color={active ? Colors.primary : Colors.textSecondary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      variant="bodyMedium"
+                      style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
+                    >
+                      {f.nome}
+                    </Text>
+                    <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                      {f.cidade} · {f.horario}
+                    </Text>
+                  </View>
+                  {active && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              );
+            })
+          )}
+
+          {!buscaFornecedor && totalBaseForn > FORN_LIMIT && (
+            <Text style={styles.fornContador}>
+              Mostrando {listaVisivelForn.length} de {totalBaseForn} · Use a busca para filtrar
+            </Text>
+          )}
+          {buscaFornecedor.length > 0 && (
+            <Text style={styles.fornContador}>
+              {totalBaseForn} resultado{totalBaseForn !== 1 ? 's' : ''}
+            </Text>
+          )}
         </Surface>
 
         {/* Serviços realizados */}
@@ -352,69 +441,63 @@ export default function GerenciarOSScreen() {
         </Button>
       </ScrollView>
 
+      </KeyboardAvoidingView>
+
       {/* Modal catálogo */}
-      <Modal
+      <BottomSheet
         visible={catalogoModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCatalogoModal(false)}
+        onDismiss={() => setCatalogoModal(false)}
+        keyboardAvoiding
+        contentStyle={styles.sheet}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text variant="titleMedium" style={styles.sheetTitle}>Selecionar serviço</Text>
-            <View style={styles.buscaWrapper}>
-              <Ionicons name="search-outline" size={16} color={Colors.textHint} />
-              <RNTextInput
-                value={catalogoBusca}
-                onChangeText={setCatalogoBusca}
-                placeholder="Buscar serviço…"
-                placeholderTextColor={Colors.textHint}
-                style={styles.buscaInput}
-              />
-            </View>
-            <FlatList
-              data={catalogoItems.filter((i) =>
-                i.nome.toLowerCase().includes(catalogoBusca.toLowerCase())
-              )}
-              keyExtractor={(item) => item.id}
-              style={{ maxHeight: 400 }}
-              ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.border }} />}
-              ListEmptyComponent={
-                <Text style={{ color: Colors.textHint, textAlign: 'center', padding: 20 }}>
-                  Nenhum serviço ativo no catálogo
-                </Text>
-              }
-              renderItem={({ item }) => {
-                const jaAdicionado = servicosRealizados.some((s) => s.catalogoId === item.id);
-                return (
-                  <TouchableOpacity
-                    style={[styles.catalogoRow, jaAdicionado && styles.catalogoRowDisabled]}
-                    onPress={() => !jaAdicionado && addServico(item)}
-                    activeOpacity={jaAdicionado ? 1 : 0.7}
-                  >
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text variant="bodyMedium" style={{ color: jaAdicionado ? Colors.textHint : Colors.textPrimary }}>
-                        {item.nome}
-                      </Text>
-                      <TipoBadge tipo={item.tipo} />
-                    </View>
-                    {jaAdicionado && (
-                      <Text style={{ color: Colors.textHint, fontSize: 12 }}>Adicionado</Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <Button mode="outlined" onPress={() => setCatalogoModal(false)} style={{ marginTop: 12 }}>
-              Fechar
-            </Button>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        <Text variant="titleMedium" style={styles.sheetTitle}>Selecionar serviço</Text>
+        <View style={styles.buscaWrapper}>
+          <Ionicons name="search-outline" size={16} color={Colors.textHint} />
+          <RNTextInput
+            value={catalogoBusca}
+            onChangeText={setCatalogoBusca}
+            placeholder="Buscar serviço…"
+            placeholderTextColor={Colors.textHint}
+            style={styles.buscaInput}
+          />
+        </View>
+        <FlatList
+          data={catalogoItems.filter((i) =>
+            i.nome.toLowerCase().includes(catalogoBusca.toLowerCase())
+          )}
+          keyExtractor={(item) => item.id}
+          style={{ maxHeight: 400 }}
+          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.border }} />}
+          ListEmptyComponent={
+            <Text style={{ color: Colors.textHint, textAlign: 'center', padding: 20 }}>
+              Nenhum serviço ativo no catálogo
+            </Text>
+          }
+          renderItem={({ item }) => {
+            const jaAdicionado = servicosRealizados.some((s) => s.catalogoId === item.id);
+            return (
+              <TouchableOpacity
+                style={[styles.catalogoRow, jaAdicionado && styles.catalogoRowDisabled]}
+                onPress={() => !jaAdicionado && addServico(item)}
+                activeOpacity={jaAdicionado ? 1 : 0.7}
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text variant="bodyMedium" style={{ color: jaAdicionado ? Colors.textHint : Colors.textPrimary }}>
+                    {item.nome}
+                  </Text>
+                  <TipoBadge tipo={item.tipo} />
+                </View>
+                {jaAdicionado && (
+                  <Text style={{ color: Colors.textHint, fontSize: 12 }}>Adicionado</Text>
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+        <Button mode="outlined" onPress={() => setCatalogoModal(false)} style={{ marginTop: 12 }}>
+          Fechar
+        </Button>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -432,12 +515,11 @@ const styles = StyleSheet.create({
   },
   topTitle: { fontWeight: '600', color: Colors.textPrimary },
   currentStatus: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 8,
+    alignItems: 'center',
   },
+  currentStatusText: { color: Colors.textSecondary, textAlign: 'center' },
   scroll: { padding: 20, gap: 12 },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
@@ -467,6 +549,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   fornRowActive: { borderColor: Colors.primary, backgroundColor: '#F0FDF4' },
+  fornBuscaWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 8,
+    marginBottom: 10,
+    backgroundColor: Colors.background,
+  },
+  fornBuscaInput: { flex: 1, fontSize: 14, color: Colors.textPrimary },
+  fornVazio: { color: Colors.textHint, textAlign: 'center', paddingVertical: 12, fontSize: 13 },
+  fornContador: { color: Colors.textHint, fontSize: 12, textAlign: 'center', marginTop: 6 },
   fornIcon: {
     width: 36,
     height: 36,
@@ -523,22 +621,8 @@ const styles = StyleSheet.create({
   textArea: { fontSize: 14, color: Colors.textPrimary, minHeight: 90, lineHeight: 20 },
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
-  // Modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 12,
   },
   sheetTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
   buscaWrapper: {

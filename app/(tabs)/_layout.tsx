@@ -9,12 +9,12 @@ import { HapticTab } from '../../components/haptic-tab';
 
 export default function TabLayout() {
   const { currentUser } = useAuthStore();
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   // Guard: redirect to login if not authenticated
   if (!currentUser) return <Redirect href="/login" />;
 
   const isGestor = currentUser.perfil === 'gestor';
-  const { bottom: bottomInset } = useSafeAreaInsets();
 
   return (
     <Tabs

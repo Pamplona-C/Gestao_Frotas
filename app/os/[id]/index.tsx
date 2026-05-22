@@ -20,8 +20,9 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
 import { subscribeToOSById } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
+import { getVeiculoById } from '../../../services/veiculo.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { OrdemServico, Fornecedor } from '../../../types';
+import { OrdemServico, Fornecedor, Veiculo } from '../../../types';
 import { Colors } from '../../../constants/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -89,6 +90,7 @@ export default function OSDetailScreen() {
   const { currentUser } = useAuthStore();
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
+  const [veiculoFallback, setVeiculoFallback] = useState<Veiculo | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,6 +104,13 @@ export default function OSDetailScreen() {
           });
         } else {
           setFornecedor(null);
+        }
+        if (data?.veiculoId && (!data.veiculoMarca || !data.veiculoModelo)) {
+          getVeiculoById(data.veiculoId).then((v) => {
+            if (mounted) setVeiculoFallback(v);
+          });
+        } else {
+          setVeiculoFallback(null);
         }
       });
       return () => {
@@ -138,6 +147,12 @@ export default function OSDetailScreen() {
     .slice(0, 2)
     .map((n) => n[0])
     .join('');
+  const veiculoMarca = os.veiculoMarca ?? veiculoFallback?.marca;
+  const veiculoModelo = os.veiculoModelo ?? veiculoFallback?.modelo;
+  const veiculoTipo = os.veiculoTipo ?? veiculoFallback?.tipo;
+  const veiculoNome = [veiculoMarca, veiculoModelo].filter(Boolean).join(' ').trim();
+  const veiculoTitulo = veiculoNome || `Frota ${os.frota}`;
+  const veiculoTipoLabel = veiculoTipo === 'moto' ? 'Moto' : veiculoTipo === 'carro' ? 'Carro' : '—';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -147,12 +162,12 @@ export default function OSDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.topCenter}>
-          <View style={styles.plateBadge}>
-            <Text style={styles.plateText}>{os.placa}</Text>
-          </View>
-          <View style={styles.frotaBadge}>
-            <Text style={styles.frotaText}>Frota {os.frota}</Text>
-          </View>
+          <Text variant="titleSmall" style={styles.topVehicleTitle} numberOfLines={1}>
+            {veiculoTitulo}
+          </Text>
+          <Text variant="labelSmall" style={styles.topVehicleMeta} numberOfLines={1}>
+            Frota {os.frota}{os.placa ? ` · ${os.placa}` : ''}
+          </Text>
         </View>
         {currentUser?.perfil === 'gestor' ? (
           <TouchableOpacity
@@ -177,6 +192,25 @@ export default function OSDetailScreen() {
         <Surface style={styles.card} elevation={1}>
           <Text variant="titleSmall" style={styles.cardTitle}>Informações gerais</Text>
           <Divider style={{ marginBottom: 10 }} />
+
+          <View style={styles.vehicleInfoBox}>
+            <View style={styles.vehicleIcon}>
+              <Ionicons
+                name={veiculoTipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+                size={20}
+                color={Colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="labelSmall" style={{ color: Colors.textHint }}>Veículo</Text>
+              <Text variant="bodyMedium" style={styles.vehicleInfoTitle}>
+                {veiculoTitulo}
+              </Text>
+              <Text variant="labelSmall" style={styles.vehicleInfoMeta}>
+                Frota {os.frota}{os.placa ? ` · ${os.placa}` : ''} · {veiculoTipoLabel}
+              </Text>
+            </View>
+          </View>
 
           {/* Condutor com foto */}
           <View style={styles.condutorRow}>
@@ -398,7 +432,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
   },
-  topCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 10 },
+  topVehicleTitle: { color: Colors.textPrimary, fontWeight: '700', textAlign: 'center' },
+  topVehicleMeta: { color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
   plateBadge: {
     backgroundColor: Colors.textPrimary,
     borderRadius: 6,
@@ -424,6 +460,27 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  vehicleInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 12,
+  },
+  vehicleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleInfoTitle: { color: Colors.textPrimary, fontWeight: '700' },
+  vehicleInfoMeta: { color: Colors.textSecondary, marginTop: 1 },
   condutorRow: {
     flexDirection: 'row',
     alignItems: 'center',

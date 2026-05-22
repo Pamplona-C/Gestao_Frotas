@@ -77,6 +77,8 @@ export default function Etapa1() {
 
     store.setVeiculoId(selecionado.veiculoId);
     store.setVeiculoTipo(selecionado.veiculoTipo);
+    store.setVeiculoMarca(selecionado.veiculoMarca);
+    store.setVeiculoModelo(selecionado.veiculoModelo);
     store.setPlaca(selecionado.veiculoPlaca ?? '');
     store.setFrota(selecionado.veiculoFrota);
     store.setHodometro(data.hodometro ?? '');
@@ -89,7 +91,7 @@ export default function Etapa1() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
