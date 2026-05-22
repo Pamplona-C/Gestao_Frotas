@@ -1,14 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput as RNTextInput,
-  Modal,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { Text, Button, Surface, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import { subscribeToAllFornecedores } from '../../../services/fornecedor.service
 import { getServicosAtivos } from '../../../services/catalogo.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { BottomSheet } from '../../../components/BottomSheet';
 import { Colors } from '../../../constants/colors';
 
 const STATUS_OPTIONS: { key: OSStatus; label: string; icon: string }[] = [
@@ -166,9 +166,15 @@ export default function GerenciarOSScreen() {
 
   const semMatchDeCidade = os.cidade != null && fornecedoresFiltrados.length === 0;
   const listaExibida = semMatchDeCidade ? todos : fornecedoresFiltrados;
+  const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
+  const veiculoLabel = veiculoNome || `Frota ${os.frota}`;
 
   return (
     <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -179,7 +185,7 @@ export default function GerenciarOSScreen() {
 
       <View style={styles.currentStatus}>
         <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>
-          {os.id.toUpperCase()} · {os.placa}
+          {os.id.toUpperCase()} · {veiculoLabel}{os.placa ? ` · ${os.placa}` : ''}
         </Text>
         <StatusBadge status={os.status} />
       </View>
@@ -352,69 +358,63 @@ export default function GerenciarOSScreen() {
         </Button>
       </ScrollView>
 
+      </KeyboardAvoidingView>
+
       {/* Modal catálogo */}
-      <Modal
+      <BottomSheet
         visible={catalogoModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCatalogoModal(false)}
+        onDismiss={() => setCatalogoModal(false)}
+        keyboardAvoiding
+        contentStyle={styles.sheet}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text variant="titleMedium" style={styles.sheetTitle}>Selecionar serviço</Text>
-            <View style={styles.buscaWrapper}>
-              <Ionicons name="search-outline" size={16} color={Colors.textHint} />
-              <RNTextInput
-                value={catalogoBusca}
-                onChangeText={setCatalogoBusca}
-                placeholder="Buscar serviço…"
-                placeholderTextColor={Colors.textHint}
-                style={styles.buscaInput}
-              />
-            </View>
-            <FlatList
-              data={catalogoItems.filter((i) =>
-                i.nome.toLowerCase().includes(catalogoBusca.toLowerCase())
-              )}
-              keyExtractor={(item) => item.id}
-              style={{ maxHeight: 400 }}
-              ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.border }} />}
-              ListEmptyComponent={
-                <Text style={{ color: Colors.textHint, textAlign: 'center', padding: 20 }}>
-                  Nenhum serviço ativo no catálogo
-                </Text>
-              }
-              renderItem={({ item }) => {
-                const jaAdicionado = servicosRealizados.some((s) => s.catalogoId === item.id);
-                return (
-                  <TouchableOpacity
-                    style={[styles.catalogoRow, jaAdicionado && styles.catalogoRowDisabled]}
-                    onPress={() => !jaAdicionado && addServico(item)}
-                    activeOpacity={jaAdicionado ? 1 : 0.7}
-                  >
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text variant="bodyMedium" style={{ color: jaAdicionado ? Colors.textHint : Colors.textPrimary }}>
-                        {item.nome}
-                      </Text>
-                      <TipoBadge tipo={item.tipo} />
-                    </View>
-                    {jaAdicionado && (
-                      <Text style={{ color: Colors.textHint, fontSize: 12 }}>Adicionado</Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <Button mode="outlined" onPress={() => setCatalogoModal(false)} style={{ marginTop: 12 }}>
-              Fechar
-            </Button>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        <Text variant="titleMedium" style={styles.sheetTitle}>Selecionar serviço</Text>
+        <View style={styles.buscaWrapper}>
+          <Ionicons name="search-outline" size={16} color={Colors.textHint} />
+          <RNTextInput
+            value={catalogoBusca}
+            onChangeText={setCatalogoBusca}
+            placeholder="Buscar serviço…"
+            placeholderTextColor={Colors.textHint}
+            style={styles.buscaInput}
+          />
+        </View>
+        <FlatList
+          data={catalogoItems.filter((i) =>
+            i.nome.toLowerCase().includes(catalogoBusca.toLowerCase())
+          )}
+          keyExtractor={(item) => item.id}
+          style={{ maxHeight: 400 }}
+          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.border }} />}
+          ListEmptyComponent={
+            <Text style={{ color: Colors.textHint, textAlign: 'center', padding: 20 }}>
+              Nenhum serviço ativo no catálogo
+            </Text>
+          }
+          renderItem={({ item }) => {
+            const jaAdicionado = servicosRealizados.some((s) => s.catalogoId === item.id);
+            return (
+              <TouchableOpacity
+                style={[styles.catalogoRow, jaAdicionado && styles.catalogoRowDisabled]}
+                onPress={() => !jaAdicionado && addServico(item)}
+                activeOpacity={jaAdicionado ? 1 : 0.7}
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text variant="bodyMedium" style={{ color: jaAdicionado ? Colors.textHint : Colors.textPrimary }}>
+                    {item.nome}
+                  </Text>
+                  <TipoBadge tipo={item.tipo} />
+                </View>
+                {jaAdicionado && (
+                  <Text style={{ color: Colors.textHint, fontSize: 12 }}>Adicionado</Text>
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+        <Button mode="outlined" onPress={() => setCatalogoModal(false)} style={{ marginTop: 12 }}>
+          Fechar
+        </Button>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -523,22 +523,8 @@ const styles = StyleSheet.create({
   textArea: { fontSize: 14, color: Colors.textPrimary, minHeight: 90, lineHeight: 20 },
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
-  // Modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 12,
   },
   sheetTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
   buscaWrapper: {
