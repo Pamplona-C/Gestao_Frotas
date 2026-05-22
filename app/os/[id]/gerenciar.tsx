@@ -21,7 +21,7 @@ import { subscribeToOSById } from '../../../services/os.service';
 import { getAllFornecedores } from '../../../services/fornecedor.service';
 import { getServicosAtivos } from '../../../services/catalogo.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { StatusBadge } from '../../../components/StatusBadge';
+
 import { BottomSheet } from '../../../components/BottomSheet';
 import { Colors } from '../../../constants/colors';
 
@@ -237,7 +237,6 @@ export default function GerenciarOSScreen() {
         <Text variant="labelSmall" style={styles.currentStatusText} numberOfLines={1}>
           {os.id.toUpperCase()} · {veiculoLabel}{os.placa ? ` · ${os.placa}` : ''}
         </Text>
-        <StatusBadge status={os.status} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -518,9 +517,9 @@ const styles = StyleSheet.create({
   currentStatus: {
     paddingHorizontal: 20,
     marginBottom: 8,
-    gap: 6,
+    alignItems: 'center',
   },
-  currentStatusText: { color: Colors.textSecondary },
+  currentStatusText: { color: Colors.textSecondary, textAlign: 'center' },
   scroll: { padding: 20, gap: 12 },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },

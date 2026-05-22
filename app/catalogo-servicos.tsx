@@ -4,17 +4,13 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Modal,
   TextInput as RNTextInput,
   Switch,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { Text, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   subscribeToServicos,
   createServico,
@@ -22,6 +18,7 @@ import {
   toggleServico,
 } from '../services/catalogo.service';
 import { CatalogoServico, TipoServico } from '../types';
+import { BottomSheet } from '../components/BottomSheet';
 import { Colors } from '../constants/colors';
 
 const TIPO_OPTIONS: { key: TipoServico; label: string; color: string; bg: string }[] = [
@@ -137,77 +134,69 @@ export default function CatalogoServicosScreen() {
         }
       />
 
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setModalVisible(false)}
+        onDismiss={() => setModalVisible(false)}
+        keyboardAvoiding
+        contentStyle={styles.sheet}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text variant="titleMedium" style={styles.sheetTitle}>
-              {editing ? 'Editar serviço' : 'Novo serviço'}
-            </Text>
+        <Text variant="titleMedium" style={styles.sheetTitle}>
+          {editing ? 'Editar serviço' : 'Novo serviço'}
+        </Text>
 
-            <Text variant="labelLarge" style={styles.fieldLabel}>Nome do serviço / peça</Text>
-            <Surface style={styles.inputSurface} elevation={0}>
-              <RNTextInput
-                value={nome}
-                onChangeText={setNome}
-                placeholder="Ex: Troca de óleo, Pastilha de freio…"
-                placeholderTextColor={Colors.textHint}
-                style={styles.input}
-                autoFocus
-              />
-            </Surface>
+        <Text variant="labelLarge" style={styles.fieldLabel}>Nome do serviço / peça</Text>
+        <Surface style={styles.inputSurface} elevation={0}>
+          <RNTextInput
+            value={nome}
+            onChangeText={setNome}
+            placeholder="Ex: Troca de óleo, Pastilha de freio…"
+            placeholderTextColor={Colors.textHint}
+            style={styles.input}
+            autoFocus
+          />
+        </Surface>
 
-            <Text variant="labelLarge" style={[styles.fieldLabel, { marginTop: 16 }]}>Tipo</Text>
-            <View style={styles.tipoRow}>
-              {TIPO_OPTIONS.map((opt) => {
-                const active = tipo === opt.key;
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={[
-                      styles.tipoCard,
-                      active && { borderColor: opt.color, backgroundColor: opt.bg },
-                    ]}
-                    onPress={() => setTipo(opt.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.tipoLabel, active && { color: opt.color }]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.sheetActions}>
-              <Button
-                mode="outlined"
-                onPress={() => setModalVisible(false)}
-                style={{ flex: 1 }}
+        <Text variant="labelLarge" style={[styles.fieldLabel, { marginTop: 16 }]}>Tipo</Text>
+        <View style={styles.tipoRow}>
+          {TIPO_OPTIONS.map((opt) => {
+            const active = tipo === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[
+                  styles.tipoCard,
+                  active && { borderColor: opt.color, backgroundColor: opt.bg },
+                ]}
+                onPress={() => setTipo(opt.key)}
+                activeOpacity={0.8}
               >
-                Cancelar
-              </Button>
-              <Button
-                mode="contained"
-                onPress={handleSave}
-                loading={saving}
-                disabled={!nome.trim() || saving}
-                style={{ flex: 1 }}
-              >
-                Salvar
-              </Button>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+                <Text style={[styles.tipoLabel, active && { color: opt.color }]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.sheetActions}>
+          <Button
+            mode="outlined"
+            onPress={() => setModalVisible(false)}
+            style={{ flex: 1 }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            mode="contained"
+            onPress={handleSave}
+            loading={saving}
+            disabled={!nome.trim() || saving}
+            style={{ flex: 1 }}
+          >
+            Salvar
+          </Button>
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -224,8 +213,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   pageTitle: { fontWeight: '700', color: Colors.textPrimary },
-  list: { paddingHorizontal: 16, paddingVertical: 8 },
-  emptyContainer: { flex: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+  emptyContainer: { flex: 1, paddingBottom: 32 },
   emptyContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 80 },
   emptyText: { color: Colors.textHint, fontSize: 15 },
   row: {
@@ -244,27 +233,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontWeight: '700' },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
   sheet: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
     gap: 4,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 12,
   },
   sheetTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
   fieldLabel: { color: Colors.textPrimary, fontWeight: '600', marginBottom: 6 },

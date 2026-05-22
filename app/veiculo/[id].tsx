@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,13 +6,12 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
-import { Text, Button, Surface, Divider } from 'react-native-paper';
+import { Text, Button, Surface, Divider, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Veiculo, Vinculo, AppUser } from '../../types';
 import { getVeiculoById } from '../../services/veiculo.service';
@@ -21,8 +20,10 @@ import {
   createVinculo,
   encerrarVinculo,
 } from '../../services/vinculo.service';
-import { subscribeToCondutores } from '../../services/usuarios.service';
+import { getCondutoresAtivos } from '../../services/usuarios.service';
 import { useAuthStore } from '../../store/auth.store';
+import { BottomSheet } from '../../components/BottomSheet';
+import { SkeletonCondutorList } from '../../components/SkeletonCard';
 import { Colors } from '../../constants/colors';
 
 type ChecklistStatus = 'pendente_entrada' | 'em_uso' | 'pendente_saida' | 'encerrado';
@@ -55,14 +56,21 @@ export default function VeiculoDetailScreen() {
   const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [condutores, setCondutores] = useState<AppUser[]>([]);
+  const [buscaCondutor, setBuscaCondutor] = useState('');
+  const [erroCondutores, setErroCondutores] = useState<string | null>(null);
   const [modalVincular, setModalVincular] = useState(false);
   const [carregando, setCarregando] = useState(true);
+  const [carregandoCondutores, setCarregandoCondutores] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      if (currentUser?.perfil !== 'gestor') {
+        setCarregando(false);
+        return undefined;
+      }
+
       let unsubVinculos: (() => void) | undefined;
-      let unsubCondutores: (() => void) | undefined;
 
       (async () => {
         const v = await getVeiculoById(id);
@@ -71,13 +79,11 @@ export default function VeiculoDetailScreen() {
       })();
 
       unsubVinculos = subscribeToVinculosByVeiculoId(id, setVinculos);
-      unsubCondutores = subscribeToCondutores(setCondutores);
 
       return () => {
         unsubVinculos?.();
-        unsubCondutores?.();
       };
-    }, [id])
+    }, [currentUser?.perfil, id])
   );
 
   const vinculosAtivos = vinculos.filter((v) => v.status === 'ativo');
@@ -85,6 +91,37 @@ export default function VeiculoDetailScreen() {
   const condutoresDisponiveis = condutores.filter(
     (c) => !vinculosAtivos.some((v) => v.condutorId === c.uid),
   );
+
+  const carregarCondutores = useCallback(async (busca = '') => {
+    setCarregandoCondutores(true);
+    setErroCondutores(null);
+    try {
+      const lista = await getCondutoresAtivos({ busca, limite: 30 });
+      setCondutores(lista);
+    } catch {
+      setCondutores([]);
+      setErroCondutores('Não foi possível carregar condutores. Tente novamente.');
+    } finally {
+      setCarregandoCondutores(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!modalVincular) return;
+
+    const timer = setTimeout(() => {
+      carregarCondutores(buscaCondutor);
+    }, buscaCondutor.trim() ? 350 : 0);
+
+    return () => clearTimeout(timer);
+  }, [buscaCondutor, carregarCondutores, modalVincular]);
+
+  const openVincular = () => {
+    setBuscaCondutor('');
+    setCondutores([]);
+    setErroCondutores(null);
+    setModalVincular(true);
+  };
 
   const handleVincular = async (condutor: AppUser) => {
     if (!veiculo || !currentUser) return;
@@ -108,6 +145,21 @@ export default function VeiculoDetailScreen() {
     }
   };
 
+  const confirmarVinculo = (condutor: AppUser) => {
+    if (!veiculo) return;
+    Alert.alert(
+      'Vincular condutor',
+      `Vincular ${condutor.nome} ao veículo ${veiculo.marca} ${veiculo.modelo} - Frota ${veiculo.frota}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Vincular',
+          onPress: () => handleVincular(condutor),
+        },
+      ],
+    );
+  };
+
   const handleDesvincular = (v: Vinculo) => {
     Alert.alert(
       'Desvincular condutor',
@@ -126,6 +178,10 @@ export default function VeiculoDetailScreen() {
   };
 
   if (carregando || !veiculo) {
+    if (currentUser?.perfil !== 'gestor') {
+      return <Redirect href="/(tabs)" />;
+    }
+
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ActivityIndicator style={{ flex: 1 }} color={Colors.primary} />
@@ -182,7 +238,7 @@ export default function VeiculoDetailScreen() {
             compact
             icon="account-plus"
             disabled={vinculosAtivos.length > 0}
-            onPress={() => setModalVincular(true)}
+            onPress={openVincular}
           >
             Vincular
           </Button>
@@ -273,60 +329,87 @@ export default function VeiculoDetailScreen() {
       </ScrollView>
 
       {/* Modal: selecionar condutor */}
-      <Modal
+      <BottomSheet
         visible={modalVincular}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVincular(false)}
+        onDismiss={() => setModalVincular(false)}
+        maxHeight="70%"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text variant="titleMedium" style={styles.modalTitle}>Selecionar condutor</Text>
-            <Divider style={{ marginBottom: 12 }} />
+        <Text variant="titleMedium" style={styles.modalTitle}>Selecionar condutor</Text>
+        <Divider style={{ marginBottom: 12 }} />
 
-            {condutoresDisponiveis.length === 0 ? (
-              <View style={styles.emptyModal}>
-                <Text variant="bodyMedium" style={{ color: Colors.textHint }}>
-                  Todos os condutores já estão vinculados
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={condutoresDisponiveis}
-                keyExtractor={(c) => c.uid}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.condutorItem}
-                    onPress={() => handleVincular(item)}
-                    disabled={salvando}
-                  >
-                    <Ionicons name="person-circle-outline" size={32} color={Colors.textSecondary} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text variant="bodyMedium" style={{ fontWeight: '600', color: Colors.textPrimary }}>
-                        {item.nome}
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
-                        {item.departamento}
-                      </Text>
-                    </View>
-                    {salvando && <ActivityIndicator size="small" color={Colors.primary} />}
-                  </TouchableOpacity>
-                )}
-                ItemSeparatorComponent={() => <Divider />}
-              />
-            )}
+        <TextInput
+          mode="outlined"
+          dense
+          value={buscaCondutor}
+          onChangeText={setBuscaCondutor}
+          placeholder="Buscar por nome ou departamento"
+          left={<TextInput.Icon icon="magnify" />}
+          right={
+            buscaCondutor
+              ? <TextInput.Icon icon="close" onPress={() => setBuscaCondutor('')} />
+              : undefined
+          }
+          style={styles.searchInput}
+        />
 
+        {carregandoCondutores ? (
+          <SkeletonCondutorList count={4} />
+        ) : erroCondutores ? (
+          <View style={styles.emptyModal}>
+            <Text variant="bodyMedium" style={{ color: Colors.textHint, textAlign: 'center' }}>
+              {erroCondutores}
+            </Text>
             <Button
               mode="outlined"
-              onPress={() => setModalVincular(false)}
+              compact
+              onPress={() => carregarCondutores(buscaCondutor)}
               style={{ marginTop: 12 }}
             >
-              Fechar
+              Tentar novamente
             </Button>
           </View>
-        </View>
-      </Modal>
+        ) : condutoresDisponiveis.length === 0 ? (
+          <View style={styles.emptyModal}>
+            <Text variant="bodyMedium" style={{ color: Colors.textHint }}>
+              {buscaCondutor.trim()
+                ? 'Nenhum condutor encontrado'
+                : 'Nenhum condutor disponível'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={condutoresDisponiveis}
+            keyExtractor={(c) => c.uid}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.condutorItem}
+                onPress={() => confirmarVinculo(item)}
+                disabled={salvando}
+              >
+                <Ionicons name="person-circle-outline" size={32} color={Colors.textSecondary} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text variant="bodyMedium" style={{ fontWeight: '600', color: Colors.textPrimary }}>
+                    {item.nome}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+                    {item.departamento}
+                  </Text>
+                </View>
+                {salvando && <ActivityIndicator size="small" color={Colors.primary} />}
+              </TouchableOpacity>
+            )}
+            ItemSeparatorComponent={() => <Divider />}
+          />
+        )}
+
+        <Button
+          mode="outlined"
+          onPress={() => setModalVincular(false)}
+          style={{ marginTop: 12 }}
+        >
+          Fechar
+        </Button>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -387,21 +470,8 @@ const styles = StyleSheet.create({
   vinculoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: Colors.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  modalHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 12,
-  },
   modalTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+  searchInput: { backgroundColor: Colors.card, marginBottom: 8 },
   emptyModal: { padding: 24, alignItems: 'center' },
   condutorItem: {
     flexDirection: 'row',
