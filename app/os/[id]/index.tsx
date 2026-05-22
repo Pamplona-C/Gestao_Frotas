@@ -217,7 +217,8 @@ export default function OSDetailScreen() {
             Frota {os.frota}{os.placa ? ` · ${os.placa}` : ''}
           </Text>
         </View>
-        {currentUser?.perfil === 'gestor' ? (
+        {currentUser?.perfil === 'gestor' &&
+         (!os.gestorId || os.gestorId === currentUser.uid) ? (
           <TouchableOpacity
             onPress={() => router.push(`/os/${os.id}/gerenciar`)}
             style={styles.manageBtn}

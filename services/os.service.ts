@@ -160,41 +160,19 @@ export async function appendStatusEntry(osId: string, entry: StatusEntry): Promi
 }
 
 export function subscribeToGestorOS(
-  gestorId: string,
+  _gestorId: string,
   callback: (ordens: OrdemServico[], metrics: ReturnType<typeof computeMetrics>) => void,
+  pageSize = 100,
 ): Unsubscribe {
-  let novas: OrdemServico[] = [];
-  let minhas: OrdemServico[] = [];
-
-  function emit() {
-    const byId = new Map<string, OrdemServico>();
-    [...novas, ...minhas].forEach((o) => byId.set(o.id, o));
-    const merged = [...byId.values()].sort(byDate);
-    callback(merged, computeMetrics(merged));
-  }
-
-  const qNovas = query(
+  const q = query(
     collection(db, 'ordens-servico'),
-    where('status', '==', 'nova'),
-  );
-
-  const qMinhas = query(
-    collection(db, 'ordens-servico'),
-    where('gestorId', '==', gestorId),
     where('status', 'in', ACTIVE_STATUSES),
+    limit(pageSize),
   );
-
-  const unsubNovas = onSnapshot(qNovas, (snap) => {
-    novas = snap.docs.map((d) => docToOS(d.id, d.data()));
-    emit();
+  return onSnapshot(q, (snap) => {
+    const ordens = snap.docs.map((d) => docToOS(d.id, d.data())).sort(byDate);
+    callback(ordens, computeMetrics(ordens));
   });
-
-  const unsubMinhas = onSnapshot(qMinhas, (snap) => {
-    minhas = snap.docs.map((d) => docToOS(d.id, d.data()));
-    emit();
-  });
-
-  return () => { unsubNovas(); unsubMinhas(); };
 }
 
 export async function updateOS(id: string, updates: Partial<OrdemServico>): Promise<void> {

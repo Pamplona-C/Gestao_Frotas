@@ -108,6 +108,17 @@ export default function GerenciarOSScreen() {
     }, [id])
   );
 
+  useEffect(() => {
+    if (!os || !currentUser) return;
+    if (os.gestorId && os.gestorId !== currentUser.uid) {
+      Alert.alert(
+        'Acesso negado',
+        'Esta OS já está sendo gerenciada por outro gestor.',
+        [{ text: 'Voltar', onPress: () => router.back() }],
+      );
+    }
+  }, [os, currentUser]);
+
   // Derived state memoizado — evita filter/reduce em todo render
   const cidadeOS = useMemo(
     () => (os?.cidade ? normalizaCidade(os.cidade) : ''),
