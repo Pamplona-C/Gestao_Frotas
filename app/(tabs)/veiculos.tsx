@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  Modal as RNModal,
 } from 'react-native';
 import {
   Text,
@@ -37,6 +36,7 @@ import {
 } from '../../services/veiculo.service';
 import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
 import { SkeletonList } from '../../components/SkeletonCard';
+import { BottomSheet } from '../../components/BottomSheet';
 import { Colors } from '../../constants/colors';
 
 const CACHE_KEY = 'cache:veiculos:p1';
@@ -310,17 +310,9 @@ export default function VeiculosScreen() {
       <FAB icon="plus" color="#FFFFFF" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
 
       {/* Bottom sheet: detalhe do veículo */}
-      <RNModal
-        visible={!!detalhe}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetalhe(null)}
-      >
-        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setDetalhe(null)} />
+      <BottomSheet visible={!!detalhe} onDismiss={() => setDetalhe(null)}>
         {detalhe && (
-          <View style={[styles.sheet, { paddingBottom: bottomInset + 16 }]}>
-            <View style={styles.sheetHandle} />
-
+          <>
             {/* Info */}
             <View style={styles.sheetHeader}>
               <View style={[styles.tipoBadge, detalhe.tipo === 'moto' && styles.tipoBadgeMoto]}>
@@ -396,195 +388,191 @@ export default function VeiculosScreen() {
               <Text variant="bodyMedium" style={[styles.sheetActionLabel, { color: '#DC2626' }]}>Excluir veículo</Text>
               <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
             </TouchableOpacity>
-          </View>
+          </>
         )}
-      </RNModal>
+      </BottomSheet>
 
       {/* Bottom sheet: formulário novo/editar */}
-      <RNModal
+      <BottomSheet
         visible={modal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModal(false)}
+        onDismiss={() => setModal(false)}
+        maxHeight="92%"
+        keyboardAvoiding
       >
-        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setModal(false)} />
-        <View style={[styles.sheet, styles.formSheet, { paddingBottom: bottomInset + 16 }]}>
-          <View style={styles.sheetHandle} />
-          <Text variant="titleMedium" style={styles.formTitle}>
-            {editando ? 'Editar veículo' : 'Novo veículo'}
-          </Text>
+        <Text variant="titleMedium" style={styles.formTitle}>
+          {editando ? 'Editar veículo' : 'Novo veículo'}
+        </Text>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Tipo */}
-            <Controller
-              control={control}
-              name="tipo"
-              render={({ field: { value, onChange } }) => (
-                <View style={styles.tipoRow}>
-                  {(['carro', 'moto'] as VeiculoTipo[]).map((t) => (
-                    <TouchableOpacity
-                      key={t}
-                      style={[styles.tipoCard, value === t && styles.tipoCardActive]}
-                      onPress={() => onChange(t)}
-                    >
-                      <Ionicons
-                        name={t === 'carro' ? 'car-outline' : 'bicycle-outline'}
-                        size={22}
-                        color={value === t ? Colors.primary : Colors.textSecondary}
-                      />
-                      <Text style={[styles.tipoLabel, value === t && { color: Colors.primary }]}>
-                        {t === 'carro' ? 'Carro' : 'Moto'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            />
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Tipo */}
+          <Controller
+            control={control}
+            name="tipo"
+            render={({ field: { value, onChange } }) => (
+              <View style={styles.tipoRow}>
+                {(['carro', 'moto'] as VeiculoTipo[]).map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.tipoCard, value === t && styles.tipoCardActive]}
+                    onPress={() => onChange(t)}
+                  >
+                    <Ionicons
+                      name={t === 'carro' ? 'car-outline' : 'bicycle-outline'}
+                      size={22}
+                      color={value === t ? Colors.primary : Colors.textSecondary}
+                    />
+                    <Text style={[styles.tipoLabel, value === t && { color: Colors.primary }]}>
+                      {t === 'carro' ? 'Carro' : 'Moto'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          />
 
-            {/* Marca + Modelo */}
-            <View style={styles.row2}>
-              {(['marca', 'modelo'] as const).map((name) => (
-                <View key={name} style={{ flex: 1 }}>
-                  <Controller
-                    control={control}
-                    name={name}
-                    render={({ field: { value, onChange, onBlur } }) => (
-                      <TextInput
-                        label={name === 'marca' ? 'Marca' : 'Modelo'}
-                        mode="outlined"
-                        value={value ?? ''}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        autoCapitalize="words"
-                        error={!!errors[name]}
-                        dense
-                      />
-                    )}
-                  />
-                  {errors[name] && <Text style={styles.err}>{errors[name]?.message}</Text>}
-                </View>
-              ))}
-            </View>
-
-            {/* Frota + Placa */}
-            <View style={styles.row2}>
-              <View style={{ flex: 1 }}>
+          {/* Marca + Modelo */}
+          <View style={styles.row2}>
+            {(['marca', 'modelo'] as const).map((name) => (
+              <View key={name} style={{ flex: 1 }}>
                 <Controller
                   control={control}
-                  name="frota"
+                  name={name}
                   render={({ field: { value, onChange, onBlur } }) => (
                     <TextInput
-                      label="Nº Frota"
+                      label={name === 'marca' ? 'Marca' : 'Modelo'}
                       mode="outlined"
                       value={value ?? ''}
                       onChangeText={onChange}
                       onBlur={onBlur}
-                      error={!!errors.frota}
+                      autoCapitalize="words"
+                      error={!!errors[name]}
                       dense
                     />
                   )}
                 />
-                {errors.frota && <Text style={styles.err}>{errors.frota.message}</Text>}
+                {errors[name] && <Text style={styles.err}>{errors[name]?.message}</Text>}
               </View>
-              <View style={{ flex: 1 }}>
-                <Controller
-                  control={control}
-                  name="placa"
-                  render={({ field: { value, onChange, onBlur } }) => (
-                    <TextInput
-                      label={tipoWatch === 'moto' ? 'Placa (opcional)' : 'Placa'}
-                      mode="outlined"
-                      value={value ?? ''}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      autoCapitalize="characters"
-                      error={!!errors.placa}
-                      dense
-                    />
-                  )}
-                />
-                {errors.placa && <Text style={styles.err}>{errors.placa.message}</Text>}
-              </View>
-            </View>
+            ))}
+          </View>
 
-            {/* Ano + KM */}
-            <View style={styles.row2}>
-              <View style={{ flex: 1 }}>
-                <Controller
-                  control={control}
-                  name="ano"
-                  render={({ field: { value, onChange, onBlur } }) => (
-                    <TextInput
-                      label="Ano"
-                      mode="outlined"
-                      value={value ?? ''}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="numeric"
-                      error={!!errors.ano}
-                      dense
-                    />
-                  )}
-                />
-                {errors.ano && <Text style={styles.err}>{errors.ano.message}</Text>}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Controller
-                  control={control}
-                  name="kmAtual"
-                  render={({ field: { value, onChange, onBlur } }) => (
-                    <TextInput
-                      label="KM atual (opcional)"
-                      mode="outlined"
-                      value={value ?? ''}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="numeric"
-                      dense
-                    />
-                  )}
-                />
-              </View>
-            </View>
-
-            {/* Departamento */}
-            <View style={{ marginBottom: 8 }}>
+          {/* Frota + Placa */}
+          <View style={styles.row2}>
+            <View style={{ flex: 1 }}>
               <Controller
                 control={control}
-                name="departamento"
+                name="frota"
                 render={({ field: { value, onChange, onBlur } }) => (
                   <TextInput
-                    label="Departamento"
+                    label="Nº Frota"
                     mode="outlined"
                     value={value ?? ''}
                     onChangeText={onChange}
                     onBlur={onBlur}
-                    autoCapitalize="words"
-                    error={!!errors.departamento}
+                    error={!!errors.frota}
                     dense
                   />
                 )}
               />
-              {errors.departamento && <Text style={styles.err}>{errors.departamento.message}</Text>}
+              {errors.frota && <Text style={styles.err}>{errors.frota.message}</Text>}
             </View>
+            <View style={{ flex: 1 }}>
+              <Controller
+                control={control}
+                name="placa"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <TextInput
+                    label={tipoWatch === 'moto' ? 'Placa (opcional)' : 'Placa'}
+                    mode="outlined"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    autoCapitalize="characters"
+                    error={!!errors.placa}
+                    dense
+                  />
+                )}
+              />
+              {errors.placa && <Text style={styles.err}>{errors.placa.message}</Text>}
+            </View>
+          </View>
 
-            {/* Ativo */}
-            <View style={styles.switchRow}>
-              <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>Veículo ativo</Text>
-              <Switch value={ativo} onValueChange={setAtivo} color={Colors.primary} />
+          {/* Ano + KM */}
+          <View style={styles.row2}>
+            <View style={{ flex: 1 }}>
+              <Controller
+                control={control}
+                name="ano"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <TextInput
+                    label="Ano"
+                    mode="outlined"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="numeric"
+                    error={!!errors.ano}
+                    dense
+                  />
+                )}
+              />
+              {errors.ano && <Text style={styles.err}>{errors.ano.message}</Text>}
             </View>
+            <View style={{ flex: 1 }}>
+              <Controller
+                control={control}
+                name="kmAtual"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <TextInput
+                    label="KM atual (opcional)"
+                    mode="outlined"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="numeric"
+                    dense
+                  />
+                )}
+              />
+            </View>
+          </View>
 
-            <View style={styles.formActions}>
-              <Button mode="outlined" onPress={() => setModal(false)} style={{ flex: 1 }}>
-                Cancelar
-              </Button>
-              <Button mode="contained" onPress={handleSubmit(onSave)} style={{ flex: 1 }}>
-                Salvar
-              </Button>
-            </View>
-          </ScrollView>
-        </View>
-      </RNModal>
+          {/* Departamento */}
+          <View style={{ marginBottom: 8 }}>
+            <Controller
+              control={control}
+              name="departamento"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <TextInput
+                  label="Departamento"
+                  mode="outlined"
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  autoCapitalize="words"
+                  error={!!errors.departamento}
+                  dense
+                />
+              )}
+            />
+            {errors.departamento && <Text style={styles.err}>{errors.departamento.message}</Text>}
+          </View>
+
+          {/* Ativo */}
+          <View style={styles.switchRow}>
+            <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>Veículo ativo</Text>
+            <Switch value={ativo} onValueChange={setAtivo} color={Colors.primary} />
+          </View>
+
+          <View style={styles.formActions}>
+            <Button mode="outlined" onPress={() => setModal(false)} style={{ flex: 1 }}>
+              Cancelar
+            </Button>
+            <Button mode="contained" onPress={handleSubmit(onSave)} style={{ flex: 1 }}>
+              Salvar
+            </Button>
+          </View>
+        </ScrollView>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -670,19 +658,6 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 4 },
   statusLabel: { fontSize: 12, fontWeight: '600' },
   modelo: { color: Colors.textPrimary, fontWeight: '500' },
-  // Bottom sheet
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: {
-    backgroundColor: Colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 16,
-  },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   sheetNome: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
   sheetMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
@@ -698,7 +673,6 @@ const styles = StyleSheet.create({
   },
   sheetActionLabel: { flex: 1, color: Colors.textPrimary, fontWeight: '500' },
   // Formulário
-  formSheet: { maxHeight: '92%' },
   formTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
   row2: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   formActions: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 8 },

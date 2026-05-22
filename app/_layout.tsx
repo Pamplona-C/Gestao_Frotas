@@ -129,9 +129,11 @@ export default function RootLayout() {
             <Stack.Screen name="perfil" />
             <Stack.Screen name="notificacoes" />
             <Stack.Screen name="catalogo-servicos" />
+            <Stack.Screen name="relatorios" />
             <Stack.Screen name="meus-veiculos" />
             <Stack.Screen name="veiculo/[id]" />
             <Stack.Screen name="checklist/[vinculoId]/[tipo]" />
+            <Stack.Screen name="checklists/[id]" />
           </Stack>
           <StatusBar style="auto" />
         </PaperProvider>
