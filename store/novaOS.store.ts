@@ -5,6 +5,8 @@ interface NovaOSState {
   // Etapa 1
   veiculoId:   string;
   veiculoTipo: VeiculoTipo | '';
+  veiculoMarca: string;
+  veiculoModelo: string;
   placa:       string;
   frota:       string;
   hodometro:   string;
@@ -21,6 +23,8 @@ interface NovaOSState {
 
   setVeiculoId:   (v: string) => void;
   setVeiculoTipo: (v: VeiculoTipo | '') => void;
+  setVeiculoMarca: (v: string) => void;
+  setVeiculoModelo: (v: string) => void;
   setPlaca:       (v: string) => void;
   setFrota:       (v: string) => void;
   setHodometro:   (v: string) => void;
@@ -37,6 +41,8 @@ interface NovaOSState {
 const initialState = {
   veiculoId:   '',
   veiculoTipo: '' as VeiculoTipo | '',
+  veiculoMarca: '',
+  veiculoModelo: '',
   placa:       '',
   frota:       '',
   hodometro:   '',
@@ -53,6 +59,8 @@ export const useNovaOSStore = create<NovaOSState>((set) => ({
   ...initialState,
   setVeiculoId:   (veiculoId)   => set({ veiculoId }),
   setVeiculoTipo: (veiculoTipo) => set({ veiculoTipo }),
+  setVeiculoMarca: (veiculoMarca) => set({ veiculoMarca }),
+  setVeiculoModelo: (veiculoModelo) => set({ veiculoModelo }),
   setPlaca:       (placa)       => set({ placa }),
   setFrota:       (frota)       => set({ frota }),
   setHodometro:   (hodometro)   => set({ hodometro }),
