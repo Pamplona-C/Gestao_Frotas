@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   addDoc,
   updateDoc,
@@ -36,7 +37,7 @@ export function subscribeToAllVeiculos(
 ): Unsubscribe {
   const q = query(
     collection(db, 'veiculos'),
-    orderBy('placa'),
+    orderBy('frota'),
     limit(VEICULOS_LIMIT),
   );
   return onSnapshot(q, (snap) => {
@@ -48,8 +49,8 @@ export async function getVeiculosPaginados(
   cursor?: QueryDocumentSnapshot<DocumentData> | null
 ): Promise<PaginaVeiculos> {
   const q = cursor
-    ? query(collection(db, 'veiculos'), orderBy('placa'), startAfter(cursor), limit(VEICULOS_PAGE_SIZE + 1))
-    : query(collection(db, 'veiculos'), orderBy('placa'), limit(VEICULOS_PAGE_SIZE + 1));
+    ? query(collection(db, 'veiculos'), orderBy('frota'), startAfter(cursor), limit(VEICULOS_PAGE_SIZE + 1))
+    : query(collection(db, 'veiculos'), orderBy('frota'), limit(VEICULOS_PAGE_SIZE + 1));
   const snap = await getDocs(q);
   const hasMore = snap.docs.length > VEICULOS_PAGE_SIZE;
   const docs = hasMore ? snap.docs.slice(0, VEICULOS_PAGE_SIZE) : snap.docs;
@@ -61,9 +62,15 @@ export async function getVeiculosPaginados(
 }
 
 export async function getAllVeiculos(): Promise<Veiculo[]> {
-  const q = query(collection(db, 'veiculos'), orderBy('placa'), limit(VEICULOS_LIMIT));
+  const q = query(collection(db, 'veiculos'), orderBy('frota'), limit(VEICULOS_LIMIT));
   const snap = await getDocs(q);
   return snap.docs.map((d) => docToVeiculo(d.id, d.data()));
+}
+
+export async function getVeiculoById(id: string): Promise<Veiculo | null> {
+  const snap = await getDoc(doc(db, 'veiculos', id));
+  if (!snap.exists()) return null;
+  return docToVeiculo(snap.id, snap.data());
 }
 
 export async function getVeiculoByPlaca(placa: string): Promise<Veiculo | null> {
