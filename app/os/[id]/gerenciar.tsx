@@ -234,7 +234,7 @@ export default function GerenciarOSScreen() {
       </View>
 
       <View style={styles.currentStatus}>
-        <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>
+        <Text variant="labelSmall" style={styles.currentStatusText} numberOfLines={1}>
           {os.id.toUpperCase()} · {veiculoLabel}{os.placa ? ` · ${os.placa}` : ''}
         </Text>
         <StatusBadge status={os.status} />
@@ -516,12 +516,11 @@ const styles = StyleSheet.create({
   },
   topTitle: { fontWeight: '600', color: Colors.textPrimary },
   currentStatus: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 8,
+    gap: 6,
   },
+  currentStatusText: { color: Colors.textSecondary },
   scroll: { padding: 20, gap: 12 },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
