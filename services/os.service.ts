@@ -159,9 +159,59 @@ export async function appendStatusEntry(osId: string, entry: StatusEntry): Promi
   });
 }
 
+export function subscribeToGestorOS(
+  gestorId: string,
+  callback: (ordens: OrdemServico[], metrics: ReturnType<typeof computeMetrics>) => void,
+): Unsubscribe {
+  let novas: OrdemServico[] = [];
+  let minhas: OrdemServico[] = [];
+
+  function emit() {
+    const byId = new Map<string, OrdemServico>();
+    [...novas, ...minhas].forEach((o) => byId.set(o.id, o));
+    const merged = [...byId.values()].sort(byDate);
+    callback(merged, computeMetrics(merged));
+  }
+
+  const qNovas = query(
+    collection(db, 'ordens-servico'),
+    where('status', '==', 'nova'),
+  );
+
+  const qMinhas = query(
+    collection(db, 'ordens-servico'),
+    where('gestorId', '==', gestorId),
+    where('status', 'in', ACTIVE_STATUSES),
+  );
+
+  const unsubNovas = onSnapshot(qNovas, (snap) => {
+    novas = snap.docs.map((d) => docToOS(d.id, d.data()));
+    emit();
+  });
+
+  const unsubMinhas = onSnapshot(qMinhas, (snap) => {
+    minhas = snap.docs.map((d) => docToOS(d.id, d.data()));
+    emit();
+  });
+
+  return () => { unsubNovas(); unsubMinhas(); };
+}
+
 export async function updateOS(id: string, updates: Partial<OrdemServico>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _id, criadoEm: _ts, ...rest } = updates as any;
   const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
   await updateDoc(doc(db, 'ordens-servico', id), data);
+}
+
+export async function marcarEntregueOficina(osId: string): Promise<void> {
+  await updateDoc(doc(db, 'ordens-servico', osId), {
+    entregueOficinaEm: new Date().toISOString(),
+  });
+}
+
+export async function marcarRetornoOficina(osId: string): Promise<void> {
+  await updateDoc(doc(db, 'ordens-servico', osId), {
+    retornouOficinaEm: new Date().toISOString(),
+  });
 }

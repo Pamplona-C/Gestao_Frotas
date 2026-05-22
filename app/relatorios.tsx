@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -62,16 +63,18 @@ function safeTime(value?: string): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 function formatDate(value?: string) {
   const time = safeTime(value);
   if (!time) return 'Sem data';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(time));
+  return dateFormatter.format(new Date(time));
 }
 
 function diffLabel(value?: string) {
@@ -86,11 +89,6 @@ function diffLabel(value?: string) {
 
 function vehicleLabel(v: Vinculo) {
   return `${v.veiculoMarca} ${v.veiculoModelo}`.trim() || `Frota ${v.veiculoFrota}`;
-}
-
-function periodStartIso(periodo: PeriodFilter): string | undefined {
-  if (periodo === 'todos') return undefined;
-  return new Date(Date.now() - Number(periodo) * 86_400_000).toISOString();
 }
 
 function buildRows(checklists: Checklist[], vinculos: Vinculo[]): ChecklistReportRow[] {
@@ -191,9 +189,8 @@ function RelatoriosContent() {
     setErro(null);
 
     try {
-      const startIso = periodStartIso(periodo);
       const [loadedChecklists, pendingVinculos] = await Promise.all([
-        getRecentChecklists(startIso, 200),
+        getRecentChecklists(undefined, 200),
         getVinculosComPendenciaChecklist(),
       ]);
 
@@ -213,7 +210,7 @@ function RelatoriosContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [periodo]);
+  }, []);
 
   useEffect(() => {
     loadReport();
@@ -243,12 +240,142 @@ function RelatoriosContent() {
     });
   }, [busca, periodo, rows, status, tipo]);
 
-  const metrics = useMemo(() => ({
-    realizados: filteredRows.filter((row) => row.status === 'concluido').length,
-    entradaPendente: filteredRows.filter((row) => row.status === 'pendente' && row.tipo === 'entrada').length,
-    saidaPendente: filteredRows.filter((row) => row.status === 'pendente' && row.tipo === 'saida').length,
-    comObservacao: filteredRows.filter((row) => !!row.observacoes?.trim()).length,
-  }), [filteredRows]);
+  const metrics = useMemo(() => filteredRows.reduce(
+    (acc, row) => {
+      if (row.status === 'concluido') acc.realizados++;
+      else if (row.tipo === 'entrada') acc.entradaPendente++;
+      else acc.saidaPendente++;
+      if (row.observacoes?.trim()) acc.comObservacao++;
+      return acc;
+    },
+    { realizados: 0, entradaPendente: 0, saidaPendente: 0, comObservacao: 0 },
+  ), [filteredRows]);
+
+  const renderRow = useCallback(({ item: row }: { item: ChecklistReportRow }) => (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={() => {
+        if (row.checklistId) {
+          router.push(`/checklists/${row.checklistId}` as any);
+        } else {
+          router.push(`/veiculo/${row.veiculoId}` as any);
+        }
+      }}
+    >
+      <Surface style={styles.rowCard} elevation={1}>
+        <View style={styles.rowTop}>
+          <View style={[styles.typeBadge, row.tipo === 'saida' && styles.typeBadgeExit]}>
+            <Ionicons
+              name={row.tipo === 'entrada' ? 'log-in-outline' : 'log-out-outline'}
+              size={14}
+              color={row.tipo === 'entrada' ? Colors.primary : '#2563EB'}
+            />
+            <Text style={[styles.typeText, row.tipo === 'saida' && styles.typeTextExit]}>
+              {row.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, row.status === 'pendente' && styles.statusBadgePending]}>
+            <Text style={[styles.statusText, row.status === 'pendente' && styles.statusTextPending]}>
+              {row.status === 'concluido' ? 'Concluído' : 'Pendente'}
+            </Text>
+          </View>
+        </View>
+
+        <Text variant="bodyMedium" style={styles.vehicleName} numberOfLines={1}>
+          {row.veiculoLabel}
+        </Text>
+        <Text variant="bodySmall" style={styles.metaText} numberOfLines={1}>
+          Frota {row.frota}{row.placa ? ` · ${row.placa}` : ''} · {row.condutorNome}
+        </Text>
+        <View style={styles.rowBottom}>
+          <Text variant="bodySmall" style={styles.dateText}>
+            {row.status === 'pendente' ? diffLabel(row.dateIso) : formatDate(row.dateIso)}
+          </Text>
+          {row.observacoes ? (
+            <View style={styles.obsBadge}>
+              <Ionicons name="chatbubble-ellipses-outline" size={13} color="#D97706" />
+              <Text style={styles.obsText}>Observação</Text>
+            </View>
+          ) : null}
+        </View>
+      </Surface>
+    </TouchableOpacity>
+  ), [router]);
+
+  const listHeader = (
+    <>
+      <View style={styles.metricsGrid}>
+        <MetricTile label="Realizados" value={metrics.realizados} icon="checkmark-circle-outline" accent />
+        <MetricTile label="Entrada pendente" value={metrics.entradaPendente} icon="log-in-outline" />
+        <MetricTile label="Saída pendente" value={metrics.saidaPendente} icon="log-out-outline" />
+        <MetricTile label="Com observação" value={metrics.comObservacao} icon="alert-circle-outline" />
+      </View>
+
+      <TextInput
+        mode="outlined"
+        label="Buscar por condutor, frota ou placa"
+        value={busca}
+        onChangeText={setBusca}
+        left={<TextInput.Icon icon="magnify" />}
+        style={styles.search}
+      />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {PERIOD_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.filterChip, periodo === item.key && styles.filterChipActive]}
+            onPress={() => setPeriodo(item.key)}
+          >
+            <Text style={[styles.filterText, periodo === item.key && styles.filterTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {TIPO_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.filterChip, tipo === item.key && styles.filterChipActive]}
+            onPress={() => setTipo(item.key)}
+          >
+            <Text style={[styles.filterText, tipo === item.key && styles.filterTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+        {STATUS_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.filterChip, status === item.key && styles.filterChipActive]}
+            onPress={() => setStatus(item.key)}
+          >
+            <Text style={[styles.filterText, status === item.key && styles.filterTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <View style={styles.sectionHeader}>
+        <Text variant="titleSmall" style={styles.sectionTitle}>Checklists</Text>
+        <Text variant="bodySmall" style={styles.countText}>{filteredRows.length} registros</Text>
+      </View>
+    </>
+  );
+
+  const listEmpty = erro ? (
+    <Surface style={styles.emptyCard} elevation={0}>
+      <Ionicons name="alert-circle-outline" size={42} color="#DC2626" />
+      <Text style={[styles.emptyText, { color: '#DC2626' }]}>{erro}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={() => loadReport(true)}>
+        <Text style={styles.retryText}>Tentar novamente</Text>
+      </TouchableOpacity>
+    </Surface>
+  ) : loading ? (
+    <ActivityIndicator color={Colors.primary} style={{ marginVertical: 32 }} />
+  ) : (
+    <Surface style={styles.emptyCard} elevation={0}>
+      <Ionicons name="document-text-outline" size={42} color={Colors.textHint} />
+      <Text style={styles.emptyText}>Nenhum checklist encontrado neste filtro</Text>
+    </Surface>
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -269,146 +396,16 @@ function RelatoriosContent() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={loading || erro ? [] : filteredRows}
+        keyExtractor={(item) => item.id}
+        renderItem={renderRow}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.metricsGrid}>
-          <MetricTile label="Realizados" value={metrics.realizados} icon="checkmark-circle-outline" accent />
-          <MetricTile label="Entrada pendente" value={metrics.entradaPendente} icon="log-in-outline" />
-          <MetricTile label="Saída pendente" value={metrics.saidaPendente} icon="log-out-outline" />
-          <MetricTile label="Com observação" value={metrics.comObservacao} icon="alert-circle-outline" />
-        </View>
-
-        <TextInput
-          mode="outlined"
-          label="Buscar por condutor, frota ou placa"
-          value={busca}
-          onChangeText={setBusca}
-          left={<TextInput.Icon icon="magnify" />}
-          style={styles.search}
-        />
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {PERIOD_FILTERS.map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.filterChip, periodo === item.key && styles.filterChipActive]}
-              onPress={() => setPeriodo(item.key)}
-            >
-              <Text style={[styles.filterText, periodo === item.key && styles.filterTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {TIPO_FILTERS.map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.filterChip, tipo === item.key && styles.filterChipActive]}
-              onPress={() => setTipo(item.key)}
-            >
-              <Text style={[styles.filterText, tipo === item.key && styles.filterTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-          {STATUS_FILTERS.map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.filterChip, status === item.key && styles.filterChipActive]}
-              onPress={() => setStatus(item.key)}
-            >
-              <Text style={[styles.filterText, status === item.key && styles.filterTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.sectionHeader}>
-          <Text variant="titleSmall" style={styles.sectionTitle}>Checklists</Text>
-          <Text variant="bodySmall" style={styles.countText}>{filteredRows.length} registros</Text>
-        </View>
-
-        {erro ? (
-          <Surface style={styles.emptyCard} elevation={0}>
-            <Ionicons name="alert-circle-outline" size={42} color="#DC2626" />
-            <Text style={[styles.emptyText, { color: '#DC2626' }]}>{erro}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => loadReport(true)}>
-              <Text style={styles.retryText}>Tentar novamente</Text>
-            </TouchableOpacity>
-          </Surface>
-        ) : loading ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 32 }} />
-        ) : filteredRows.length === 0 ? (
-          <Surface style={styles.emptyCard} elevation={0}>
-            <Ionicons name="document-text-outline" size={42} color={Colors.textHint} />
-            <Text style={styles.emptyText}>Nenhum checklist encontrado neste filtro</Text>
-          </Surface>
-        ) : (
-          filteredRows.map((row) => (
-            <TouchableOpacity
-              key={row.id}
-              activeOpacity={0.82}
-              onPress={() => {
-                if (row.checklistId) {
-                  router.push(`/checklists/${row.checklistId}` as any);
-                } else {
-                  router.push(`/veiculo/${row.veiculoId}` as any);
-                }
-              }}
-            >
-              <Surface style={styles.rowCard} elevation={1}>
-                <View style={styles.rowTop}>
-                  <View style={[
-                    styles.typeBadge,
-                    row.tipo === 'saida' && styles.typeBadgeExit,
-                  ]}>
-                    <Ionicons
-                      name={row.tipo === 'entrada' ? 'log-in-outline' : 'log-out-outline'}
-                      size={14}
-                      color={row.tipo === 'entrada' ? Colors.primary : '#2563EB'}
-                    />
-                    <Text style={[
-                      styles.typeText,
-                      row.tipo === 'saida' && styles.typeTextExit,
-                    ]}>
-                      {row.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                    </Text>
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    row.status === 'pendente' && styles.statusBadgePending,
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      row.status === 'pendente' && styles.statusTextPending,
-                    ]}>
-                      {row.status === 'concluido' ? 'Concluído' : 'Pendente'}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text variant="bodyMedium" style={styles.vehicleName} numberOfLines={1}>
-                  {row.veiculoLabel}
-                </Text>
-                <Text variant="bodySmall" style={styles.metaText} numberOfLines={1}>
-                  Frota {row.frota}{row.placa ? ` · ${row.placa}` : ''} · {row.condutorNome}
-                </Text>
-                <View style={styles.rowBottom}>
-                  <Text variant="bodySmall" style={styles.dateText}>
-                    {row.status === 'pendente' ? diffLabel(row.dateIso) : formatDate(row.dateIso)}
-                  </Text>
-                  {row.observacoes ? (
-                    <View style={styles.obsBadge}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={13} color="#D97706" />
-                      <Text style={styles.obsText}>Observação</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </Surface>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }

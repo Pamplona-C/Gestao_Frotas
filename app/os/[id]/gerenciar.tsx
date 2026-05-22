@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   View,
@@ -14,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { arrayUnion, doc, writeBatch } from 'firebase/firestore';
+import { arrayUnion, doc, runTransaction, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
 import { subscribeToOSById } from '../../../services/os.service';
@@ -177,9 +178,27 @@ export default function GerenciarOSScreen() {
       }),
     }).filter(([, v]) => v !== undefined));
 
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'ordens-servico', os.id), updates);
-    await batch.commit();
+    const osRef = doc(db, 'ordens-servico', os.id);
+    const primeiroAssignment = !os.gestorId;
+
+    if (primeiroAssignment) {
+      try {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(osRef);
+          if (snap.data()?.gestorId) {
+            throw new Error('OS já foi assumida por outro gestor.');
+          }
+          tx.update(osRef, updates);
+        });
+      } catch (e: any) {
+        Alert.alert('Conflito', e.message ?? 'Não foi possível salvar. Tente novamente.');
+        return;
+      }
+    } else {
+      const batch = writeBatch(db);
+      batch.update(osRef, updates);
+      await batch.commit();
+    }
     router.back();
   };
 

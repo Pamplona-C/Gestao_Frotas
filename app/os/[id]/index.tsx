@@ -7,6 +7,7 @@ import {
   Modal,
   Dimensions,
   Linking,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
@@ -18,7 +19,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
-import { subscribeToOSById } from '../../../services/os.service';
+import { subscribeToOSById, marcarEntregueOficina, marcarRetornoOficina } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
 import { getVeiculoById } from '../../../services/veiculo.service';
 import { useAuthStore } from '../../../store/auth.store';
@@ -91,6 +92,7 @@ export default function OSDetailScreen() {
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
   const [veiculoFallback, setVeiculoFallback] = useState<Veiculo | null>(null);
+  const [loadingOficina, setLoadingOficina] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -153,6 +155,52 @@ export default function OSDetailScreen() {
   const veiculoNome = [veiculoMarca, veiculoModelo].filter(Boolean).join(' ').trim();
   const veiculoTitulo = veiculoNome || `Frota ${os.frota}`;
   const veiculoTipoLabel = veiculoTipo === 'moto' ? 'Moto' : veiculoTipo === 'carro' ? 'Carro' : '—';
+
+  const handleEntregue = () => {
+    Alert.alert(
+      'Confirmar entrega',
+      'Confirmar que o veículo foi entregue na oficina agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setLoadingOficina(true);
+            try {
+              await marcarEntregueOficina(os.id);
+            } catch {
+              Alert.alert('Erro', 'Não foi possível registrar a entrega.');
+            } finally {
+              setLoadingOficina(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRetorno = () => {
+    Alert.alert(
+      'Confirmar retorno',
+      'Confirmar que o veículo voltou da oficina agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setLoadingOficina(true);
+            try {
+              await marcarRetornoOficina(os.id);
+            } catch {
+              Alert.alert('Erro', 'Não foi possível registrar o retorno.');
+            } finally {
+              setLoadingOficina(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -345,6 +393,60 @@ export default function OSDetailScreen() {
           <Timeline os={os} />
         </Surface>
 
+        {/* Veículo na oficina */}
+        {(currentUser?.perfil === 'condutor' || os.entregueOficinaEm) && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleSmall" style={styles.cardTitle}>Veículo na oficina</Text>
+            <Divider style={{ marginBottom: 12 }} />
+
+            {/* Condutor: botão de entrega quando ainda não entregou */}
+            {currentUser?.perfil === 'condutor' && !os.entregueOficinaEm && (
+              <Button
+                mode="contained"
+                icon="garage-open"
+                loading={loadingOficina}
+                disabled={loadingOficina}
+                onPress={handleEntregue}
+              >
+                Marcar como entregue na oficina
+              </Button>
+            )}
+
+            {/* Entregue — timestamp + botão de retorno (condutor) */}
+            {os.entregueOficinaEm && (
+              <View style={styles.oficinRow}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                <Text variant="bodySmall" style={{ color: Colors.textSecondary, flex: 1 }}>
+                  Entregue em {format(new Date(os.entregueOficinaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </Text>
+              </View>
+            )}
+
+            {currentUser?.perfil === 'condutor' && os.entregueOficinaEm && !os.retornouOficinaEm && (
+              <Button
+                mode="outlined"
+                icon="home-import-outline"
+                style={{ marginTop: 10 }}
+                loading={loadingOficina}
+                disabled={loadingOficina}
+                onPress={handleRetorno}
+              >
+                Marcar retorno do veículo
+              </Button>
+            )}
+
+            {/* Retorno — timestamp */}
+            {os.retornouOficinaEm && (
+              <View style={[styles.oficinRow, { marginTop: 6 }]}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                <Text variant="bodySmall" style={{ color: Colors.textSecondary, flex: 1 }}>
+                  Retornou em {format(new Date(os.retornouOficinaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </Text>
+              </View>
+            )}
+          </Surface>
+        )}
+
         {/* Serviços realizados */}
         {os.servicosRealizados && os.servicosRealizados.length > 0 && (
           <Surface style={styles.card} elevation={1}>
@@ -460,6 +562,7 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  oficinRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   vehicleInfoBox: {
     flexDirection: 'row',
     alignItems: 'center',

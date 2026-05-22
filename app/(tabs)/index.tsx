@@ -21,6 +21,7 @@ import { NotificationBell } from '../../components/NotificationBell';
 import {
   subscribeToOSByCondutorId,
   subscribeToAllOS,
+  subscribeToGestorOS,
 } from '../../services/os.service';
 import { subscribeToAllFornecedores } from '../../services/fornecedor.service';
 import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
@@ -40,7 +41,7 @@ const CHECKLIST_CFG: Record<ChecklistStatus, { label: string; color: string; bg:
 };
 
 // ──────────────── Condutor Home ────────────────
-function CondutorHome() {
+function Home() {
   const { currentUser } = useAuthStore();
   const router = useRouter();
   const online = useConectividade();
@@ -254,11 +255,11 @@ function CondutorHome() {
 
 // ──────────────── Gestor Dashboard ────────────────
 const STATUS_FILTERS: { key: OSStatus | 'todas'; label: string }[] = [
-  { key: 'todas',             label: 'Todas' },
-  { key: 'nova',              label: 'Nova' },
-  { key: 'em_andamento',      label: 'Em andamento' },
-  { key: 'em_diagnostico',    label: 'Diagnóstico' },
-  { key: 'orcamento_aprovado',label: 'Aprovado' },
+  { key: 'nova',               label: 'Nova' },
+  { key: 'todas',              label: 'Todas' },
+  { key: 'em_andamento',       label: 'Em andamento' },
+  { key: 'em_diagnostico',     label: 'Diagnóstico' },
+  { key: 'orcamento_aprovado', label: 'Aprovado' },
 ];
 
 function GestorDashboard() {
@@ -267,12 +268,12 @@ function GestorDashboard() {
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
   const [metrics, setMetrics] = useState({ total: 0, emAndamento: 0, orcamentoAprovado: 0, gastoPreventiva: 0, gastoCorretiva: 0 });
-  const [filtro, setFiltro] = useState<OSStatus | 'todas'>('todas');
+  const [filtro, setFiltro] = useState<OSStatus | 'todas'>('nova');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsubOS = subscribeToAllOS((data, m) => {
+    const unsubOS = subscribeToGestorOS(currentUser!.uid, (data, m) => {
       setOrdens(data);
       setMetrics(m);
       setLoading(false);
@@ -386,7 +387,7 @@ function GestorDashboard() {
 // ──────────────── Export ────────────────
 export default function HomeScreen() {
   const { currentUser } = useAuthStore();
-  return currentUser?.perfil === 'gestor' ? <GestorDashboard /> : <CondutorHome />;
+  return currentUser?.perfil === 'gestor' ? <GestorDashboard /> : <Home />;
 }
 
 const styles = StyleSheet.create({

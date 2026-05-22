@@ -176,6 +176,8 @@ export interface OrdemServico {
   gestorPhotoURL?:      string | null;
   gestorDepartamento?:  string;
   statusHistory?:       StatusEntry[];
+  entregueOficinaEm?:   string;
+  retornouOficinaEm?:   string;
   servicosRealizados?:  ServicoRealizado[];
   valorTotal?:          number;
   gastoPreventiva?:     number;

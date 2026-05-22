@@ -56,10 +56,16 @@ export default function MeusVeiculosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text variant="titleLarge" style={styles.title}>Meus Veículos</Text>
-        <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
-          {vinculos.length} vinculado{vinculos.length !== 1 ? 's' : ''}
-        </Text>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <View>
+          <Text variant="titleLarge" style={styles.title}>Meus Veículos</Text>
+          <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+            {vinculos.length} vinculado{vinculos.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        <View style={{ width: 24 }} />
       </View>
 
       {carregando ? (
@@ -148,7 +154,7 @@ export default function MeusVeiculosScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
   title: { fontWeight: '700', color: Colors.textPrimary },
   list: { paddingHorizontal: 20, paddingBottom: 100 },
   empty: { alignItems: 'center', paddingTop: 80 },
