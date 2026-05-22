@@ -104,7 +104,7 @@ async function sendMulticast(
 // ── Trigger 1: OS criada → notifica gestores ───────────────────────────────────
 
 export const onOSCreated = onDocumentCreated(
-  'ordens-servico/{id}',
+  { document: 'ordens-servico/{id}', minInstances: 1 },
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
@@ -155,7 +155,7 @@ export const onOSCreated = onDocumentCreated(
 // ── Trigger 2: Status atualizado → notifica condutor ──────────────────────────
 
 export const onOSStatusUpdated = onDocumentUpdated(
-  'ordens-servico/{id}',
+  { document: 'ordens-servico/{id}', minInstances: 1 },
   async (event) => {
     const before = event.data?.before.data();
     const after  = event.data?.after.data();
@@ -214,7 +214,7 @@ export const onOSStatusUpdated = onDocumentUpdated(
 // ── Trigger 3: Vínculo criado → notifica condutor ─────────────────────────────
 
 export const onVinculoCriado = onDocumentCreated(
-  'vinculos/{id}',
+  { document: 'vinculos/{id}', minInstances: 1 },
   async (event) => {
     const data = event.data?.data();
     if (!data) return;

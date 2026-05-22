@@ -23,11 +23,15 @@ service cloud.firestore {
       allow delete: if isGestor();
     }
 
-    // OS: condutor cria as próprias; qualquer autenticado lê; gestor atualiza
+    // OS: condutor cria as próprias e atualiza só fotos; gestor atualiza tudo
     match /ordens-servico/{id} {
       allow read:   if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.condutorId == request.auth.uid;
-      allow update: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        (request.resource.data.condutorId == request.auth.uid || isGestor());
+      allow update: if isGestor() ||
+        (isAuthenticated() &&
+         resource.data.condutorId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fotos']));
     }
 
     // Fornecedores e veículos: leitura autenticada; escrita apenas para gestores
