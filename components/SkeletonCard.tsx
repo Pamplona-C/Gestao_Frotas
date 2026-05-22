@@ -76,19 +76,43 @@ export function SkeletonFornecedorCard() {
   );
 }
 
+export function SkeletonCondutorItem() {
+  return (
+    <View style={styles.condutorItem}>
+      <Bone width={32} height={32} style={{ borderRadius: 16 }} />
+      <View style={{ flex: 1, gap: 6 }}>
+        <Bone width="55%" height={14} />
+        <Bone width="35%" height={12} />
+      </View>
+    </View>
+  );
+}
+
+export function SkeletonCondutorList({ count = 4 }: { count?: number }) {
+  return (
+    <View style={styles.condutorList}>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCondutorItem key={i} />
+      ))}
+    </View>
+  );
+}
+
 export function SkeletonList({
   count = 6,
   variant,
 }: {
   count?: number;
-  variant: 'veiculo' | 'fornecedor';
+  variant: 'veiculo' | 'fornecedor' | 'condutor';
 }) {
   return (
     <View style={{ paddingHorizontal: 20, gap: 8, paddingTop: 4 }}>
       {Array.from({ length: count }).map((_, i) =>
         variant === 'veiculo'
           ? <SkeletonVeiculoCard key={i} />
-          : <SkeletonFornecedorCard key={i} />,
+          : variant === 'fornecedor'
+            ? <SkeletonFornecedorCard key={i} />
+            : <SkeletonCondutorItem key={i} />,
       )}
     </View>
   );
@@ -106,5 +130,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  condutorList: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  condutorItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
 });
