@@ -305,7 +305,6 @@ export default function GerenciarOSScreen() {
               placeholderTextColor={Colors.textHint}
               style={styles.fornBuscaInput}
               returnKeyType="search"
-              clearButtonMode="while-editing"
             />
             {buscaFornecedor.length > 0 && (
               <TouchableOpacity onPress={() => setBuscaFornecedor('')} hitSlop={8}>
