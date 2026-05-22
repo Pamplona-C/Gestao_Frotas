@@ -69,6 +69,7 @@ export default function GerenciarOSScreen() {
   const [catalogoModal, setCatalogoModal] = useState(false);
   const [catalogoItems, setCatalogoItems] = useState<CatalogoServico[]>([]);
   const [catalogoBusca, setCatalogoBusca] = useState('');
+  const [buscaFornecedor, setBuscaFornecedor] = useState('');
 
   // Ref para aplicar dados do Firestore só no primeiro snapshot — evita sobrescrever edições do usuário
   const initialized = useRef(false);
@@ -182,6 +183,30 @@ export default function GerenciarOSScreen() {
     router.back();
   };
 
+  // Busca + limite de fornecedores — hooks antes do early return
+  const semMatchDeCidade = os?.cidade != null && fornecedoresFiltrados.length === 0;
+  const baseList = semMatchDeCidade ? fornecedores : fornecedoresFiltrados;
+
+  const FORN_LIMIT = 5;
+  const { listaVisivelForn, totalBaseForn } = useMemo(() => {
+    const q = buscaFornecedor.toLowerCase().trim();
+    const filtered = q
+      ? baseList.filter((f) =>
+          f.nome.toLowerCase().includes(q) || f.cidade.toLowerCase().includes(q)
+        )
+      : baseList;
+
+    if (q) return { listaVisivelForn: filtered, totalBaseForn: filtered.length };
+
+    // Sem busca: limita a FORN_LIMIT, mas garante que o selecionado aparece
+    const sliced = filtered.slice(0, FORN_LIMIT);
+    if (selectedFornecedor && !sliced.find((f) => f.id === selectedFornecedor)) {
+      const sel = filtered.find((f) => f.id === selectedFornecedor);
+      if (sel) return { listaVisivelForn: [sel, ...sliced.slice(0, FORN_LIMIT - 1)], totalBaseForn: filtered.length };
+    }
+    return { listaVisivelForn: sliced, totalBaseForn: filtered.length };
+  }, [baseList, buscaFornecedor, selectedFornecedor]);
+
   if (!os) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -191,9 +216,6 @@ export default function GerenciarOSScreen() {
       </SafeAreaView>
     );
   }
-
-  const semMatchDeCidade = os.cidade != null && fornecedoresFiltrados.length === 0;
-  const listaExibida = semMatchDeCidade ? fornecedores : fornecedoresFiltrados;
   const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
   const veiculoLabel = veiculoNome || `Frota ${os.frota}`;
 
@@ -272,38 +294,73 @@ export default function GerenciarOSScreen() {
               </Text>
             </View>
           )}
+
+          {/* Busca */}
+          <View style={styles.fornBuscaWrapper}>
+            <Ionicons name="search-outline" size={15} color={Colors.textHint} />
+            <RNTextInput
+              value={buscaFornecedor}
+              onChangeText={setBuscaFornecedor}
+              placeholder="Buscar por nome ou cidade…"
+              placeholderTextColor={Colors.textHint}
+              style={styles.fornBuscaInput}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+            {buscaFornecedor.length > 0 && (
+              <TouchableOpacity onPress={() => setBuscaFornecedor('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color={Colors.textHint} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           <Divider style={{ marginBottom: 10 }} />
 
-          {listaExibida.map((f) => {
-            const active = selectedFornecedor === f.id;
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={[styles.fornRow, active && styles.fornRowActive]}
-                onPress={() => setSelectedFornecedor(active ? null : f.id)}
-              >
-                <View style={styles.fornIcon}>
-                  <Ionicons
-                    name={active ? 'business' : 'business-outline'}
-                    size={18}
-                    color={active ? Colors.primary : Colors.textSecondary}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    variant="bodyMedium"
-                    style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
-                  >
-                    {f.nome}
-                  </Text>
-                  <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                    {f.cidade} · {f.horario}
-                  </Text>
-                </View>
-                {active && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-            );
-          })}
+          {listaVisivelForn.length === 0 ? (
+            <Text style={styles.fornVazio}>Nenhum fornecedor encontrado</Text>
+          ) : (
+            listaVisivelForn.map((f) => {
+              const active = selectedFornecedor === f.id;
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.fornRow, active && styles.fornRowActive]}
+                  onPress={() => setSelectedFornecedor(active ? null : f.id)}
+                >
+                  <View style={styles.fornIcon}>
+                    <Ionicons
+                      name={active ? 'business' : 'business-outline'}
+                      size={18}
+                      color={active ? Colors.primary : Colors.textSecondary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      variant="bodyMedium"
+                      style={[{ fontWeight: '500', color: Colors.textPrimary }, active && { color: Colors.primary }]}
+                    >
+                      {f.nome}
+                    </Text>
+                    <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                      {f.cidade} · {f.horario}
+                    </Text>
+                  </View>
+                  {active && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              );
+            })
+          )}
+
+          {!buscaFornecedor && totalBaseForn > FORN_LIMIT && (
+            <Text style={styles.fornContador}>
+              Mostrando {listaVisivelForn.length} de {totalBaseForn} · Use a busca para filtrar
+            </Text>
+          )}
+          {buscaFornecedor.length > 0 && (
+            <Text style={styles.fornContador}>
+              {totalBaseForn} resultado{totalBaseForn !== 1 ? 's' : ''}
+            </Text>
+          )}
         </Surface>
 
         {/* Serviços realizados */}
@@ -495,6 +552,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   fornRowActive: { borderColor: Colors.primary, backgroundColor: '#F0FDF4' },
+  fornBuscaWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 8,
+    marginBottom: 10,
+    backgroundColor: Colors.background,
+  },
+  fornBuscaInput: { flex: 1, fontSize: 14, color: Colors.textPrimary },
+  fornVazio: { color: Colors.textHint, textAlign: 'center', paddingVertical: 12, fontSize: 13 },
+  fornContador: { color: Colors.textHint, fontSize: 12, textAlign: 'center', marginTop: 6 },
   fornIcon: {
     width: 36,
     height: 36,
