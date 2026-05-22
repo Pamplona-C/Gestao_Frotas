@@ -92,8 +92,8 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="meus-veiculos" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
-      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }

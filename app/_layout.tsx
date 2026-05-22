@@ -17,7 +17,9 @@ const theme = {
   colors: {
     ...MD3LightTheme.colors,
     primary: Colors.primary,
+    onPrimary: '#FFFFFF',
     secondary: Colors.accent,
+    onSecondary: '#FFFFFF',
     surface: Colors.card,
     background: Colors.background,
     outline: Colors.border,
@@ -127,6 +129,9 @@ export default function RootLayout() {
             <Stack.Screen name="perfil" />
             <Stack.Screen name="notificacoes" />
             <Stack.Screen name="catalogo-servicos" />
+            <Stack.Screen name="meus-veiculos" />
+            <Stack.Screen name="veiculo/[id]" />
+            <Stack.Screen name="checklist/[vinculoId]/[tipo]" />
           </Stack>
           <StatusBar style="auto" />
         </PaperProvider>

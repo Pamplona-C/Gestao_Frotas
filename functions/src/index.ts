@@ -211,7 +211,47 @@ export const onOSStatusUpdated = onDocumentUpdated(
   },
 );
 
-// ── Trigger 3: Lembretes diários de OS agendadas ──────────────────────────────
+// ── Trigger 3: Vínculo criado → notifica condutor ─────────────────────────────
+
+export const onVinculoCriado = onDocumentCreated(
+  'vinculos/{id}',
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const condutorId   = data.condutorId   as string;
+    const veiculoMarca = data.veiculoMarca  as string;
+    const veiculoModelo= data.veiculoModelo as string;
+    const veiculoFrota = data.veiculoFrota  as string;
+
+    const condutorDoc = await db.collection('usuarios').doc(condutorId).get();
+    const token = condutorDoc.data()?.fcmToken as string | undefined;
+    if (!token) return;
+
+    const title = 'Veículo vinculado';
+    const body  = `${veiculoMarca} ${veiculoModelo} (Frota ${veiculoFrota}) foi vinculado a você. Faça o checklist de entrada para começar.`;
+
+    try {
+      await messaging.send({
+        token,
+        notification: { title, body },
+        android: {
+          priority: 'high',
+          notification: { channelId: 'os-updates', sound: 'default' },
+        },
+        apns: {
+          payload: { aps: { sound: 'default', badge: 1 } },
+        },
+      });
+    } catch (err: any) {
+      if (isStaleToken(err?.errorInfo?.code)) {
+        await removeStaleToken(condutorId);
+      }
+    }
+  },
+);
+
+// ── Trigger 4: Lembretes diários de OS agendadas ──────────────────────────────
 
 const ACTIVE_STATUSES = ['nova', 'em_andamento', 'em_diagnostico', 'orcamento_aprovado'];
 const SP_OFFSET_MS = -3 * 60 * 60 * 1000; // UTC-3 (Brasília, sem horário de verão)

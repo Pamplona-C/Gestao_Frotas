@@ -7,13 +7,13 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  Modal as RNModal,
 } from 'react-native';
 import {
   Text,
   TextInput,
   FAB,
-  Portal,
-  Modal,
   Button,
   Surface,
   Divider,
@@ -22,11 +22,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
-import { Veiculo } from '../../types';
+import { Veiculo, VeiculoTipo } from '../../types';
 import {
   getVeiculosPaginados,
   getAllVeiculos,
@@ -35,21 +36,30 @@ import {
   deleteVeiculo,
 } from '../../services/veiculo.service';
 import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
+import { SkeletonList } from '../../components/SkeletonCard';
 import { Colors } from '../../constants/colors';
 
 const CACHE_KEY = 'cache:veiculos:p1';
 
 const schema = z.object({
-  placa: z.string().min(7, 'Placa inválida').max(8),
-  frota: z.string().min(1, 'Obrigatório'),
-  modelo: z.string().min(2, 'Obrigatório'),
-  ano: z.string().regex(/^\d{4}$/, 'Ano inválido'),
-  departamento: z.string().min(2, 'Obrigatório'),
+  tipo:        z.enum(['carro', 'moto']),
+  marca:       z.string().min(2, 'Obrigatório'),
+  modelo:      z.string().min(2, 'Obrigatório'),
+  frota:       z.string().min(1, 'Obrigatório'),
+  placa:       z.string().optional(),
+  ano:         z.string().regex(/^\d{4}$/, 'Ano inválido'),
+  kmAtual:     z.string().optional(),
+  departamento:z.string().min(2, 'Obrigatório'),
+}).superRefine((data, ctx) => {
+  if (data.tipo === 'carro' && (!data.placa || data.placa.length < 7)) {
+    ctx.addIssue({ code: 'custom', path: ['placa'], message: 'Placa inválida' });
+  }
 });
 type FormData = z.infer<typeof schema>;
 
 export default function VeiculosScreen() {
   const { bottom: bottomInset } = useSafeAreaInsets();
+  const router = useRouter();
 
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -65,14 +75,17 @@ export default function VeiculosScreen() {
   const [modal, setModal] = useState(false);
   const [ativo, setAtivo] = useState(true);
   const [editando, setEditando] = useState<Veiculo | null>(null);
+  const [detalhe, setDetalhe] = useState<Veiculo | null>(null);
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { tipo: 'carro' },
   });
+
+  const tipoWatch = watch('tipo');
 
   // ── Paginação ────────────────────────────────────────────────────────────
   const carregarPrimeiraPagina = useCallback(async () => {
-    // 1. Mostra cache imediatamente (se válido)
     const cached = await cacheGet<Veiculo[]>(CACHE_KEY);
     if (cached) {
       setVeiculos(cached);
@@ -81,7 +94,6 @@ export default function VeiculosScreen() {
       setCarregando(true);
     }
 
-    // 2. Busca dados frescos do Firestore em background
     try {
       const res = await getVeiculosPaginados();
       setVeiculos(res.items);
@@ -107,14 +119,12 @@ export default function VeiculosScreen() {
     }
   }, [hasMore, carregandoMais, cursor]);
 
-  // Foca tela → carrega página 1 (apenas se não há busca ativa)
   useFocusEffect(
     useCallback(() => {
       if (!buscaRef.current.trim()) carregarPrimeiraPagina();
     }, [carregarPrimeiraPagina])
   );
 
-  // Busca: debounce 350ms; quando vazia, volta ao modo paginado
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
@@ -133,9 +143,10 @@ export default function VeiculosScreen() {
         setVeiculos(
           todos.filter(
             (v) =>
-              v.placa.toLowerCase().includes(lower) ||
-              v.modelo.toLowerCase().includes(lower) ||
-              v.frota.includes(trimmed),
+              (v.placa ?? '').toLowerCase().includes(lower) ||
+              (v.modelo ?? '').toLowerCase().includes(lower) ||
+              (v.frota ?? '').includes(trimmed) ||
+              (v.marca ?? '').toLowerCase().includes(lower),
           )
         );
         setCursor(null);
@@ -157,7 +168,7 @@ export default function VeiculosScreen() {
   // ── CRUD ─────────────────────────────────────────────────────────────────
   const openNovo = () => {
     setEditando(null);
-    reset({ placa: '', frota: '', modelo: '', ano: '', departamento: '' });
+    reset({ tipo: 'carro', marca: '', modelo: '', frota: '', placa: '', ano: '', kmAtual: '', departamento: '' });
     setAtivo(true);
     setModal(true);
   };
@@ -165,10 +176,13 @@ export default function VeiculosScreen() {
   const openEditar = (v: Veiculo) => {
     setEditando(v);
     reset({
-      placa: v.placa,
-      frota: v.frota,
-      modelo: v.modelo,
-      ano: String(v.ano),
+      tipo:         v.tipo ?? 'carro',
+      marca:        v.marca ?? '',
+      modelo:       v.modelo,
+      frota:        v.frota,
+      placa:        v.placa ?? '',
+      ano:          String(v.ano),
+      kmAtual:      v.kmAtual !== undefined ? String(v.kmAtual) : '',
       departamento: v.departamento,
     });
     setAtivo(v.ativo);
@@ -176,24 +190,30 @@ export default function VeiculosScreen() {
   };
 
   const onSave = async (data: FormData) => {
-    const payload = {
-      placa: data.placa.toUpperCase(),
-      frota: data.frota,
-      modelo: data.modelo,
-      ano: parseInt(data.ano),
+    const payload: Omit<Veiculo, 'id'> = {
+      tipo:         data.tipo,
+      marca:        data.marca,
+      modelo:       data.modelo,
+      frota:        data.frota,
+      placa:        data.tipo === 'carro' ? (data.placa ?? '').toUpperCase() : undefined,
+      ano:          parseInt(data.ano),
+      kmAtual:      data.kmAtual ? parseInt(data.kmAtual) : undefined,
       departamento: data.departamento,
       ativo,
     };
+    const clean = Object.fromEntries(
+      Object.entries(payload).filter(([, v]) => v !== undefined),
+    ) as Omit<Veiculo, 'id'>;
+
     if (editando) {
-      await updateVeiculo(editando.id, payload);
+      await updateVeiculo(editando.id, clean);
     } else {
-      await createVeiculo(payload);
+      await createVeiculo(clean);
     }
     setModal(false);
     reset();
     setAtivo(true);
     setEditando(null);
-    // Recarrega a lista para refletir a mudança
     cacheInvalidate(CACHE_KEY);
     setBusca('');
     carregarPrimeiraPagina();
@@ -202,7 +222,7 @@ export default function VeiculosScreen() {
   const onDelete = (v: Veiculo) => {
     Alert.alert(
       'Excluir veículo',
-      `Deseja excluir ${v.placa} — ${v.modelo}? Esta ação não pode ser desfeita.`,
+      `Deseja excluir ${v.placa ?? v.frota} — ${v.modelo}? Esta ação não pode ser desfeita.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -231,7 +251,7 @@ export default function VeiculosScreen() {
       <View style={styles.searchBar}>
         <TextInput
           mode="outlined"
-          placeholder="Buscar placa, modelo ou frota…"
+          placeholder="Buscar placa, marca, modelo ou frota…"
           value={busca}
           onChangeText={setBusca}
           left={<TextInput.Icon icon="magnify" />}
@@ -247,12 +267,14 @@ export default function VeiculosScreen() {
         renderItem={({ item }) => (
           <VeiculoCard
             veiculo={item}
-            onEdit={() => openEditar(item)}
-            onDelete={() => onDelete(item)}
+            onPress={() => setDetalhe(item)}
           />
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={10}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         onEndReached={carregarMais}
         onEndReachedThreshold={0.3}
@@ -273,7 +295,7 @@ export default function VeiculosScreen() {
         }
         ListEmptyComponent={
           carregando ? (
-            <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
+            <SkeletonList variant="veiculo" count={6} />
           ) : (
             <View style={styles.empty}>
               <Ionicons name="car-outline" size={48} color={Colors.textHint} />
@@ -285,103 +307,324 @@ export default function VeiculosScreen() {
         }
       />
 
-      <FAB icon="plus" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
+      <FAB icon="plus" color="#FFFFFF" style={[styles.fab, { bottom: bottomInset + 80 }]} onPress={openNovo} />
 
-      <Portal>
-        <Modal
-          visible={modal}
-          onDismiss={() => setModal(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <Text variant="titleMedium" style={styles.modalTitle}>
+      {/* Bottom sheet: detalhe do veículo */}
+      <RNModal
+        visible={!!detalhe}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetalhe(null)}
+      >
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setDetalhe(null)} />
+        {detalhe && (
+          <View style={[styles.sheet, { paddingBottom: bottomInset + 16 }]}>
+            <View style={styles.sheetHandle} />
+
+            {/* Info */}
+            <View style={styles.sheetHeader}>
+              <View style={[styles.tipoBadge, detalhe.tipo === 'moto' && styles.tipoBadgeMoto]}>
+                <Ionicons
+                  name={detalhe.tipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+                  size={13}
+                  color={detalhe.tipo === 'moto' ? '#7C3AED' : Colors.primary}
+                />
+                <Text style={[styles.tipoBadgeLabel, detalhe.tipo === 'moto' && { color: '#7C3AED' }]}>
+                  {detalhe.tipo === 'moto' ? 'Moto' : 'Carro'}
+                </Text>
+              </View>
+              <View style={styles.frotaBadge}>
+                <Text style={styles.frotaText}>Frota {detalhe.frota}</Text>
+              </View>
+              <View style={[styles.statusDot, { backgroundColor: detalhe.ativo ? Colors.accent : Colors.textHint, marginLeft: 4 }]} />
+              <Text style={[styles.statusLabel, { color: detalhe.ativo ? Colors.accent : Colors.textHint }]}>
+                {detalhe.ativo ? 'Ativo' : 'Inativo'}
+              </Text>
+            </View>
+
+            <Text variant="titleMedium" style={styles.sheetNome}>
+              {detalhe.marca} {detalhe.modelo}
+            </Text>
+
+            <View style={styles.sheetMeta}>
+              {detalhe.placa ? (
+                <View style={styles.plateBadge}>
+                  <Text style={styles.plateText}>{detalhe.placa}</Text>
+                </View>
+              ) : null}
+              <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+                {detalhe.ano}
+                {detalhe.kmAtual ? ` · ${detalhe.kmAtual.toLocaleString('pt-BR')} km` : ''}
+              </Text>
+              <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+                {detalhe.departamento}
+              </Text>
+            </View>
+
+            <Divider style={{ marginVertical: 16 }} />
+
+            {/* Ações */}
+            <TouchableOpacity
+              style={styles.sheetAction}
+              onPress={() => { setDetalhe(null); openEditar(detalhe); }}
+            >
+              <View style={[styles.sheetActionIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
+              </View>
+              <Text variant="bodyMedium" style={styles.sheetActionLabel}>Editar veículo</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetAction}
+              onPress={() => { setDetalhe(null); router.push(`/veiculo/${detalhe.id}` as any); }}
+            >
+              <View style={[styles.sheetActionIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Ionicons name="people-outline" size={18} color="#16A34A" />
+              </View>
+              <Text variant="bodyMedium" style={styles.sheetActionLabel}>Vínculos e condutores</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetAction}
+              onPress={() => { setDetalhe(null); onDelete(detalhe); }}
+            >
+              <View style={[styles.sheetActionIcon, { backgroundColor: '#FEF2F2' }]}>
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+              </View>
+              <Text variant="bodyMedium" style={[styles.sheetActionLabel, { color: '#DC2626' }]}>Excluir veículo</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </RNModal>
+
+      {/* Bottom sheet: formulário novo/editar */}
+      <RNModal
+        visible={modal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModal(false)}
+      >
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setModal(false)} />
+        <View style={[styles.sheet, styles.formSheet, { paddingBottom: bottomInset + 16 }]}>
+          <View style={styles.sheetHandle} />
+          <Text variant="titleMedium" style={styles.formTitle}>
             {editando ? 'Editar veículo' : 'Novo veículo'}
           </Text>
-          <Divider style={{ marginBottom: 12 }} />
 
-          {(['placa', 'frota', 'modelo', 'ano', 'departamento'] as const).map((field) => (
-            <View key={field} style={{ marginBottom: 8 }}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Tipo */}
+            <Controller
+              control={control}
+              name="tipo"
+              render={({ field: { value, onChange } }) => (
+                <View style={styles.tipoRow}>
+                  {(['carro', 'moto'] as VeiculoTipo[]).map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.tipoCard, value === t && styles.tipoCardActive]}
+                      onPress={() => onChange(t)}
+                    >
+                      <Ionicons
+                        name={t === 'carro' ? 'car-outline' : 'bicycle-outline'}
+                        size={22}
+                        color={value === t ? Colors.primary : Colors.textSecondary}
+                      />
+                      <Text style={[styles.tipoLabel, value === t && { color: Colors.primary }]}>
+                        {t === 'carro' ? 'Carro' : 'Moto'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            />
+
+            {/* Marca + Modelo */}
+            <View style={styles.row2}>
+              {(['marca', 'modelo'] as const).map((name) => (
+                <View key={name} style={{ flex: 1 }}>
+                  <Controller
+                    control={control}
+                    name={name}
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <TextInput
+                        label={name === 'marca' ? 'Marca' : 'Modelo'}
+                        mode="outlined"
+                        value={value ?? ''}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        autoCapitalize="words"
+                        error={!!errors[name]}
+                        dense
+                      />
+                    )}
+                  />
+                  {errors[name] && <Text style={styles.err}>{errors[name]?.message}</Text>}
+                </View>
+              ))}
+            </View>
+
+            {/* Frota + Placa */}
+            <View style={styles.row2}>
+              <View style={{ flex: 1 }}>
+                <Controller
+                  control={control}
+                  name="frota"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      label="Nº Frota"
+                      mode="outlined"
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.frota}
+                      dense
+                    />
+                  )}
+                />
+                {errors.frota && <Text style={styles.err}>{errors.frota.message}</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Controller
+                  control={control}
+                  name="placa"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      label={tipoWatch === 'moto' ? 'Placa (opcional)' : 'Placa'}
+                      mode="outlined"
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      autoCapitalize="characters"
+                      error={!!errors.placa}
+                      dense
+                    />
+                  )}
+                />
+                {errors.placa && <Text style={styles.err}>{errors.placa.message}</Text>}
+              </View>
+            </View>
+
+            {/* Ano + KM */}
+            <View style={styles.row2}>
+              <View style={{ flex: 1 }}>
+                <Controller
+                  control={control}
+                  name="ano"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      label="Ano"
+                      mode="outlined"
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="numeric"
+                      error={!!errors.ano}
+                      dense
+                    />
+                  )}
+                />
+                {errors.ano && <Text style={styles.err}>{errors.ano.message}</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Controller
+                  control={control}
+                  name="kmAtual"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      label="KM atual (opcional)"
+                      mode="outlined"
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="numeric"
+                      dense
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            {/* Departamento */}
+            <View style={{ marginBottom: 8 }}>
               <Controller
                 control={control}
-                name={field}
+                name="departamento"
                 render={({ field: { value, onChange, onBlur } }) => (
                   <TextInput
-                    label={
-                      field === 'placa' ? 'Placa' :
-                      field === 'frota' ? 'Nº Frota' :
-                      field === 'modelo' ? 'Modelo' :
-                      field === 'ano' ? 'Ano' : 'Departamento'
-                    }
+                    label="Departamento"
                     mode="outlined"
-                    value={value}
+                    value={value ?? ''}
                     onChangeText={onChange}
                     onBlur={onBlur}
-                    keyboardType={field === 'ano' ? 'numeric' : 'default'}
-                    autoCapitalize={field === 'placa' ? 'characters' : 'words'}
-                    error={!!errors[field]}
+                    autoCapitalize="words"
+                    error={!!errors.departamento}
                     dense
                   />
                 )}
               />
-              {errors[field] && (
-                <Text style={styles.err}>{errors[field]?.message}</Text>
-              )}
+              {errors.departamento && <Text style={styles.err}>{errors.departamento.message}</Text>}
             </View>
-          ))}
 
-          <View style={styles.switchRow}>
-            <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>Ativo</Text>
-            <Switch value={ativo} onValueChange={setAtivo} color={Colors.primary} />
-          </View>
+            {/* Ativo */}
+            <View style={styles.switchRow}>
+              <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>Veículo ativo</Text>
+              <Switch value={ativo} onValueChange={setAtivo} color={Colors.primary} />
+            </View>
 
-          <View style={styles.modalActions}>
-            <Button mode="outlined" onPress={() => setModal(false)} style={{ flex: 1 }}>
-              Cancelar
-            </Button>
-            <Button mode="contained" onPress={handleSubmit(onSave)} style={{ flex: 1 }}>
-              Salvar
-            </Button>
-          </View>
-        </Modal>
-      </Portal>
+            <View style={styles.formActions}>
+              <Button mode="outlined" onPress={() => setModal(false)} style={{ flex: 1 }}>
+                Cancelar
+              </Button>
+              <Button mode="contained" onPress={handleSubmit(onSave)} style={{ flex: 1 }}>
+                Salvar
+              </Button>
+            </View>
+          </ScrollView>
+        </View>
+      </RNModal>
     </SafeAreaView>
   );
 }
 
-function VeiculoCard({
-  veiculo,
-  onEdit,
-  onDelete,
-}: {
-  veiculo: Veiculo;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
+const VeiculoCard = React.memo(function VeiculoCard({ veiculo, onPress }: { veiculo: Veiculo; onPress: () => void }) {
   return (
-    <Surface style={styles.card} elevation={1}>
-      <View style={styles.cardHeader}>
-        <View style={styles.plateBadge}>
-          <Text style={styles.plateText}>{veiculo.placa}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <Surface style={styles.card} elevation={1}>
+        <View style={styles.cardHeader}>
+          {veiculo.placa ? (
+            <View style={styles.plateBadge}>
+              <Text style={styles.plateText}>{veiculo.placa}</Text>
+            </View>
+          ) : null}
+          <View style={styles.frotaBadge}>
+            <Text style={styles.frotaText}>Frota {veiculo.frota}</Text>
+          </View>
+          <View style={[styles.tipoBadge, veiculo.tipo === 'moto' && styles.tipoBadgeMoto]}>
+            <Ionicons
+              name={veiculo.tipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+              size={11}
+              color={veiculo.tipo === 'moto' ? '#7C3AED' : Colors.primary}
+            />
+          </View>
+          <View style={[styles.statusDot, { backgroundColor: veiculo.ativo ? Colors.accent : Colors.textHint }]} />
+          <Text style={[styles.statusLabel, { color: veiculo.ativo ? Colors.accent : Colors.textHint }]}>
+            {veiculo.ativo ? 'Ativo' : 'Inativo'}
+          </Text>
+          <View style={{ flex: 1 }} />
+          <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
         </View>
-        <View style={styles.frotaBadge}>
-          <Text style={styles.frotaText}>Frota {veiculo.frota}</Text>
-        </View>
-        <View style={[styles.statusDot, { backgroundColor: veiculo.ativo ? Colors.accent : Colors.textHint }]} />
-        <Text style={[styles.statusLabel, { color: veiculo.ativo ? Colors.accent : Colors.textHint }]}>
-          {veiculo.ativo ? 'Ativo' : 'Inativo'}
-        </Text>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={onEdit} style={styles.actionBtn} hitSlop={8}>
-          <Ionicons name="pencil-outline" size={17} color={Colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onDelete} style={styles.actionBtn} hitSlop={8}>
-          <Ionicons name="trash-outline" size={17} color="#DC2626" />
-        </TouchableOpacity>
-      </View>
-      <Text variant="bodyMedium" style={styles.modelo}>{veiculo.modelo} · {veiculo.ano}</Text>
-      <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>{veiculo.departamento}</Text>
-    </Surface>
+        <Text variant="bodyMedium" style={styles.modelo}>{veiculo.marca} {veiculo.modelo} · {veiculo.ano}</Text>
+        <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>{veiculo.departamento}</Text>
+      </Surface>
+    </TouchableOpacity>
   );
-}
+}, (prev, next) =>
+  prev.veiculo.id === next.veiculo.id &&
+  prev.veiculo.ativo === next.veiculo.ativo
+);
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
@@ -400,7 +643,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     gap: 4,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   plateBadge: {
     backgroundColor: Colors.textPrimary,
     borderRadius: 6,
@@ -417,19 +660,64 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   frotaText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  tipoBadge: {
+    borderRadius: 4,
+    padding: 3,
+    backgroundColor: '#EFF6FF',
+  },
+  tipoBadgeMoto: { backgroundColor: '#F5F3FF' },
+  tipoBadgeLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 4 },
   statusLabel: { fontSize: 12, fontWeight: '600' },
   modelo: { color: Colors.textPrimary, fontWeight: '500' },
-  actionBtn: { padding: 4 },
-  // Modal
-  modalContainer: {
-    margin: 20,
+  // Bottom sheet
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
     backgroundColor: Colors.card,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 20,
-    gap: 4,
   },
-  modalTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  sheetNome: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+  sheetMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  sheetAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+  },
+  sheetActionIcon: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetActionLabel: { flex: 1, color: Colors.textPrimary, fontWeight: '500' },
+  // Formulário
+  formSheet: { maxHeight: '92%' },
+  formTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+  row2: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  formActions: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 8 },
+  tipoRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  tipoCard: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    padding: 12,
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.background,
+  },
+  tipoCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  tipoLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -40,14 +40,19 @@ export interface UserProfile {
   ativo?:         boolean;
 }
 
+export type VeiculoTipo = 'carro' | 'moto';
+
 export interface Veiculo {
-  id: string;
-  placa: string;
-  frota: string;
-  modelo: string;
-  ano: number;
+  id:           string;
+  tipo:         VeiculoTipo;
+  marca:        string;
+  modelo:       string;
+  frota:        string;
+  placa?:       string;
+  ano:          number;
+  kmAtual?:     number;
   departamento: string;
-  ativo: boolean;
+  ativo:        boolean;
 }
 
 export interface Fornecedor {
@@ -102,13 +107,46 @@ export interface Notificacao {
   read: boolean;
 }
 
+export type VinculoStatus = 'ativo' | 'inativo';
+
+export interface Vinculo {
+  id:                  string;
+  condutorId:          string;
+  condutorNome:        string;
+  veiculoId:           string;
+  veiculoFrota:        string;
+  veiculoModelo:       string;
+  veiculoMarca:        string;
+  veiculoPlaca?:       string;
+  veiculoTipo:         VeiculoTipo;
+  checklistEntradaId?: string;
+  checklistSaidaId?:   string;
+  status:              VinculoStatus;
+  criadoEm:            string;
+  gestorId:            string;
+  encerradoEm?:        string;
+}
+
+export interface Checklist {
+  id:           string;
+  tipo:         'entrada' | 'saida';
+  vinculoId:    string;
+  condutorId:   string;
+  veiculoId:    string;
+  veiculoTipo:  VeiculoTipo;
+  fotos:        Record<string, string>;
+  observacoes?: string;
+  completadoEm: string;
+}
+
 export interface OrdemServico {
   id: string;
-  placa: string;
+  veiculoId?: string;
+  placa?: string;
   frota: string;
   condutorId: string;
   condutorNome: string;
-  hodometro: number;
+  hodometro?: number;
   servicos?: string[];
   descricao?: string;
   fotos?: string[];
