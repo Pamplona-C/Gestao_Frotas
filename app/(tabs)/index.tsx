@@ -21,7 +21,6 @@ import { NotificationBell } from '../../components/NotificationBell';
 import {
   subscribeToOSByCondutorId,
   subscribeToAllOS,
-  subscribeToGestorOS,
 } from '../../services/os.service';
 import { subscribeToAllFornecedores } from '../../services/fornecedor.service';
 import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
@@ -273,7 +272,7 @@ function GestorDashboard() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsubOS = subscribeToGestorOS(currentUser!.uid, (data, m) => {
+    const unsubOS = subscribeToAllOS((data, m) => {
       setOrdens(data);
       setMetrics(m);
       setLoading(false);

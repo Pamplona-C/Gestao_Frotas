@@ -159,21 +159,6 @@ export async function appendStatusEntry(osId: string, entry: StatusEntry): Promi
   });
 }
 
-export function subscribeToGestorOS(
-  _gestorId: string,
-  callback: (ordens: OrdemServico[], metrics: ReturnType<typeof computeMetrics>) => void,
-  pageSize = 100,
-): Unsubscribe {
-  const q = query(
-    collection(db, 'ordens-servico'),
-    where('status', 'in', ACTIVE_STATUSES),
-    limit(pageSize),
-  );
-  return onSnapshot(q, (snap) => {
-    const ordens = snap.docs.map((d) => docToOS(d.id, d.data())).sort(byDate);
-    callback(ordens, computeMetrics(ordens));
-  });
-}
 
 export async function updateOS(id: string, updates: Partial<OrdemServico>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
