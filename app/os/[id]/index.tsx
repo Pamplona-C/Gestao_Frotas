@@ -506,7 +506,8 @@ export default function OSDetailScreen() {
         )}
 
         {/* Gestor action button */}
-        {currentUser?.perfil === 'gestor' && (
+        {currentUser?.perfil === 'gestor' &&
+         (!os.gestorId || os.gestorId === currentUser.uid) && (
           <Button
             mode="contained"
             style={styles.btn}
