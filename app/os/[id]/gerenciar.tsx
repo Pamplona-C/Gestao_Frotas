@@ -15,12 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { arrayUnion, doc, runTransaction, writeBatch } from 'firebase/firestore';
+import { arrayUnion, doc, runTransaction, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import { CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
+import { AppUser, CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
 import { subscribeToOSById } from '../../../services/os.service';
 import { getAllFornecedores } from '../../../services/fornecedor.service';
 import { getServicosAtivos } from '../../../services/catalogo.service';
+import { getGestoresAtivos } from '../../../services/usuarios.service';
 import { useAuthStore } from '../../../store/auth.store';
 
 import { BottomSheet } from '../../../components/BottomSheet';
@@ -66,6 +67,11 @@ export default function GerenciarOSScreen() {
   const [nota, setNota] = useState('');
   const [servicosRealizados, setServicosRealizados] = useState<ServicoRealizado[]>([]);
 
+  const [gestores, setGestores] = useState<AppUser[]>([]);
+  const [transferenciaModal, setTransferenciaModal] = useState(false);
+  const [buscaGestor, setBuscaGestor] = useState('');
+  const [loadingTransferencia, setLoadingTransferencia] = useState(false);
+
   // Modal de seleção de serviço do catálogo
   const [catalogoModal, setCatalogoModal] = useState(false);
   const [catalogoItems, setCatalogoItems] = useState<CatalogoServico[]>([]);
@@ -79,6 +85,12 @@ export default function GerenciarOSScreen() {
   useEffect(() => {
     let alive = true;
     getServicosAtivos().then((items) => { if (alive) setCatalogoItems(items); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    getGestoresAtivos().then((items) => { if (alive) setGestores(items); });
     return () => { alive = false; };
   }, []);
 
@@ -129,6 +141,45 @@ export default function GerenciarOSScreen() {
     () => (cidadeOS ? fornecedores.filter((f) => normalizaCidade(f.cidade) === cidadeOS) : []),
     [fornecedores, cidadeOS],
   );
+
+  const gestoresFiltrados = useMemo(() => {
+    const busca = buscaGestor.toLowerCase().trim();
+    return gestores.filter(
+      (g) => g.uid !== currentUser?.uid &&
+        (!busca || g.nome.toLowerCase().includes(busca) || g.departamento.toLowerCase().includes(busca))
+    );
+  }, [gestores, buscaGestor, currentUser?.uid]);
+
+  const handleTransferir = (destino: AppUser) => {
+    Alert.alert(
+      'Transferir responsabilidade',
+      `Passar esta OS para ${destino.nome}? Você perderá o acesso de gerenciamento.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Transferir',
+          style: 'destructive',
+          onPress: async () => {
+            setLoadingTransferencia(true);
+            setTransferenciaModal(false);
+            try {
+              await updateDoc(doc(db, 'ordens-servico', os!.id), {
+                gestorId:           destino.uid,
+                gestorNome:         destino.nome,
+                gestorPhotoURL:     destino.photoURL ?? null,
+                gestorDepartamento: destino.departamento,
+              });
+              router.back();
+            } catch {
+              Alert.alert('Erro', 'Não foi possível transferir a OS. Tente novamente.');
+            } finally {
+              setLoadingTransferencia(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const openCatalogo = () => {
     setCatalogoBusca('');
@@ -460,6 +511,20 @@ export default function GerenciarOSScreen() {
           </View>
         </Surface>
 
+        {os.gestorId && (
+          <Button
+            mode="outlined"
+            icon="account-switch-outline"
+            loading={loadingTransferencia}
+            disabled={loadingTransferencia}
+            style={[styles.btn, { marginBottom: 4 }]}
+            contentStyle={styles.btnContent}
+            onPress={() => { setBuscaGestor(''); setTransferenciaModal(true); }}
+          >
+            Transferir responsabilidade
+          </Button>
+        )}
+
         <Button
           mode="contained"
           style={styles.btn}
@@ -525,6 +590,52 @@ export default function GerenciarOSScreen() {
           }}
         />
         <Button mode="outlined" onPress={() => setCatalogoModal(false)} style={{ marginTop: 12 }}>
+          Fechar
+        </Button>
+      </BottomSheet>
+
+      {/* Modal transferência de titularidade */}
+      <BottomSheet
+        visible={transferenciaModal}
+        onDismiss={() => setTransferenciaModal(false)}
+        keyboardAvoiding
+        contentStyle={styles.sheet}
+      >
+        <Text variant="titleMedium" style={styles.sheetTitle}>Transferir para</Text>
+        <View style={styles.buscaWrapper}>
+          <Ionicons name="search-outline" size={16} color={Colors.textHint} />
+          <RNTextInput
+            value={buscaGestor}
+            onChangeText={setBuscaGestor}
+            placeholder="Buscar por nome ou departamento…"
+            placeholderTextColor={Colors.textHint}
+            style={styles.buscaInput}
+          />
+        </View>
+        <FlatList
+          data={gestoresFiltrados}
+          keyExtractor={(g) => g.uid}
+          style={{ maxHeight: 320 }}
+          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.border }} />}
+          ListEmptyComponent={
+            <Text style={{ color: Colors.textHint, textAlign: 'center', padding: 20 }}>
+              Nenhum gestor encontrado
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.catalogoRow}
+              onPress={() => handleTransferir(item)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>{item.nome}</Text>
+                <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>{item.departamento}</Text>
+              </View>
+              <Ionicons name="arrow-forward-outline" size={18} color={Colors.textHint} />
+            </TouchableOpacity>
+          )}
+        />
+        <Button mode="outlined" onPress={() => setTransferenciaModal(false)} style={{ marginTop: 12 }}>
           Fechar
         </Button>
       </BottomSheet>

@@ -40,6 +40,19 @@ export function subscribeToCondutores(
   });
 }
 
+export async function getGestoresAtivos(): Promise<AppUser[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'usuarios'),
+      where('perfil', '==', 'gestor'),
+      where('ativo', '==', true),
+    )
+  );
+  return snap.docs
+    .map((d) => docToAppUser(d.id, d.data()))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
 export async function getCondutoresAtivos({
   busca = '',
   limite = CONDUTORES_LIMIT,
