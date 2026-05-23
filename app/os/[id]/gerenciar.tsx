@@ -80,6 +80,8 @@ export default function GerenciarOSScreen() {
 
   // Ref para aplicar dados do Firestore só no primeiro snapshot — evita sobrescrever edições do usuário
   const initialized = useRef(false);
+  // Suprime o guard de acesso negado quando a própria tela iniciou a transferência
+  const transferindo = useRef(false);
 
   // Catálogo: busca uma única vez no mount, não a cada focus
   useEffect(() => {
@@ -121,7 +123,7 @@ export default function GerenciarOSScreen() {
   );
 
   useEffect(() => {
-    if (!os || !currentUser) return;
+    if (!os || !currentUser || transferindo.current) return;
     if (os.gestorId && os.gestorId !== currentUser.uid) {
       Alert.alert(
         'Acesso negado',
@@ -160,6 +162,7 @@ export default function GerenciarOSScreen() {
           text: 'Transferir',
           style: 'destructive',
           onPress: async () => {
+            transferindo.current = true;
             setLoadingTransferencia(true);
             setTransferenciaModal(false);
             try {
