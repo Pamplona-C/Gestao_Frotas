@@ -163,15 +163,18 @@ export default function GerenciarOSScreen() {
             setLoadingTransferencia(true);
             setTransferenciaModal(false);
             try {
-              await updateDoc(doc(db, 'ordens-servico', os!.id), {
-                gestorId:           destino.uid,
-                gestorNome:         destino.nome,
-                gestorPhotoURL:     destino.photoURL ?? null,
-                gestorDepartamento: destino.departamento,
-              });
+              await updateDoc(doc(db, 'ordens-servico', os!.id), Object.fromEntries(
+                Object.entries({
+                  gestorId:           destino.uid,
+                  gestorNome:         destino.nome,
+                  gestorPhotoURL:     destino.photoURL ?? null,
+                  gestorDepartamento: destino.departamento,
+                }).filter(([, v]) => v !== undefined)
+              ));
               router.replace('/(tabs)');
-            } catch {
-              Alert.alert('Erro', 'Não foi possível transferir a OS. Tente novamente.');
+            } catch (e: any) {
+              console.error('[transferir]', e);
+              Alert.alert('Erro', e?.message ?? 'Não foi possível transferir a OS. Tente novamente.');
             } finally {
               setLoadingTransferencia(false);
             }
