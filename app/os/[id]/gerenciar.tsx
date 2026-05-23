@@ -169,7 +169,7 @@ export default function GerenciarOSScreen() {
                 gestorPhotoURL:     destino.photoURL ?? null,
                 gestorDepartamento: destino.departamento,
               });
-              router.back();
+              router.replace('/(tabs)');
             } catch {
               Alert.alert('Erro', 'Não foi possível transferir a OS. Tente novamente.');
             } finally {
