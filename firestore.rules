@@ -51,12 +51,12 @@ service cloud.firestore {
       allow write: if isGestor();
     }
 
-    // Vínculos condutor↔veículo: gestor cria/encerra; condutor lê e atualiza (checklist)
+    // Vínculos condutor↔veículo: gestor cria/encerra; condutores vinculados lêem e atualizam (checklist)
     match /vinculos/{id} {
       allow read:   if isAuthenticated() &&
-        (isGestor() || resource.data.condutorId == request.auth.uid);
+        (isGestor() || request.auth.uid in resource.data.condutorIds);
       allow create: if isGestor();
-      allow update: if isGestor() || resource.data.condutorId == request.auth.uid;
+      allow update: if isGestor() || request.auth.uid in resource.data.condutorIds;
       allow delete: if false;
     }
 

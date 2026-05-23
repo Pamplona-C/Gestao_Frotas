@@ -18,6 +18,7 @@ import { getVeiculoById } from '../../services/veiculo.service';
 import {
   subscribeToVinculosByVeiculoId,
   createVinculo,
+  addCondutorToVinculo,
   encerrarVinculo,
 } from '../../services/vinculo.service';
 import { getCondutoresAtivos } from '../../services/usuarios.service';
@@ -59,6 +60,7 @@ export default function VeiculoDetailScreen() {
   const [buscaCondutor, setBuscaCondutor] = useState('');
   const [erroCondutores, setErroCondutores] = useState<string | null>(null);
   const [modalVincular, setModalVincular] = useState(false);
+  const [vinculoParaAdicionar, setVinculoParaAdicionar] = useState<Vinculo | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [carregandoCondutores, setCarregandoCondutores] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -88,9 +90,8 @@ export default function VeiculoDetailScreen() {
 
   const vinculosAtivos = vinculos.filter((v) => v.status === 'ativo');
 
-  const condutoresDisponiveis = condutores.filter(
-    (c) => !vinculosAtivos.some((v) => v.condutorId === c.uid),
-  );
+  const idsVinculados = vinculosAtivos.flatMap((v) => v.condutorIds ?? [v.condutorId]);
+  const condutoresDisponiveis = condutores.filter((c) => !idsVinculados.includes(c.uid));
 
   const carregarCondutores = useCallback(async (busca = '') => {
     setCarregandoCondutores(true);
@@ -116,10 +117,11 @@ export default function VeiculoDetailScreen() {
     return () => clearTimeout(timer);
   }, [buscaCondutor, carregarCondutores, modalVincular]);
 
-  const openVincular = () => {
+  const openVincular = (vinculo?: Vinculo) => {
     setBuscaCondutor('');
     setCondutores([]);
     setErroCondutores(null);
+    setVinculoParaAdicionar(vinculo ?? null);
     setModalVincular(true);
   };
 
@@ -127,18 +129,23 @@ export default function VeiculoDetailScreen() {
     if (!veiculo || !currentUser) return;
     setSalvando(true);
     try {
-      await createVinculo({
-        condutorId:    condutor.uid,
-        condutorNome:  condutor.nome,
-        veiculoId:     veiculo.id,
-        veiculoFrota:  veiculo.frota,
-        veiculoModelo: veiculo.modelo,
-        veiculoMarca:  veiculo.marca ?? '',
-        veiculoPlaca:  veiculo.placa,
-        veiculoTipo:   veiculo.tipo ?? 'carro',
-        status:        'ativo',
-        gestorId:      currentUser.uid,
-      });
+      if (vinculoParaAdicionar) {
+        await addCondutorToVinculo(vinculoParaAdicionar.id, { uid: condutor.uid, nome: condutor.nome });
+      } else {
+        await createVinculo({
+          condutorId:    condutor.uid,
+          condutorNome:  condutor.nome,
+          condutorIds:   [condutor.uid],
+          veiculoId:     veiculo.id,
+          veiculoFrota:  veiculo.frota,
+          veiculoModelo: veiculo.modelo,
+          veiculoMarca:  veiculo.marca ?? '',
+          veiculoPlaca:  veiculo.placa,
+          veiculoTipo:   veiculo.tipo ?? 'carro',
+          status:        'ativo',
+          gestorId:      currentUser.uid,
+        });
+      }
       setModalVincular(false);
     } finally {
       setSalvando(false);
@@ -232,22 +239,18 @@ export default function VeiculoDetailScreen() {
 
         {/* Condutores vinculados */}
         <View style={styles.sectionHeader}>
-          <Text variant="titleSmall" style={styles.sectionTitle}>Condutor vinculado</Text>
-          <Button
-            mode="contained-tonal"
-            compact
-            icon="account-plus"
-            disabled={vinculosAtivos.length > 0}
-            onPress={openVincular}
-          >
-            Vincular
-          </Button>
+          <Text variant="titleSmall" style={styles.sectionTitle}>Condutores vinculados</Text>
+          {vinculosAtivos.length === 0 && (
+            <Button
+              mode="contained-tonal"
+              compact
+              icon="account-plus"
+              onPress={() => openVincular()}
+            >
+              Vincular
+            </Button>
+          )}
         </View>
-        {vinculosAtivos.length > 0 && (
-          <Text variant="bodySmall" style={{ color: Colors.textSecondary, marginBottom: 4 }}>
-            Desvincule o condutor atual antes de vincular outro.
-          </Text>
-        )}
 
         {vinculosAtivos.length === 0 ? (
           <Surface style={styles.emptyCard} elevation={0}>
@@ -259,6 +262,7 @@ export default function VeiculoDetailScreen() {
         ) : (
           vinculosAtivos.map((v) => {
             const st = getStatus(v);
+            const temSegundo = !!v.condutorId2;
             return (
               <Surface key={v.id} style={styles.vinculoCard} elevation={1}>
                 <View style={styles.vinculoRow}>
@@ -278,6 +282,35 @@ export default function VeiculoDetailScreen() {
                     <Ionicons name="person-remove-outline" size={20} color="#DC2626" />
                   </TouchableOpacity>
                 </View>
+
+                {temSegundo && (
+                  <>
+                    <Divider style={{ marginVertical: 8 }} />
+                    <View style={styles.vinculoRow}>
+                      <Ionicons name="person-circle-outline" size={36} color={Colors.textSecondary} />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="bodyMedium" style={{ fontWeight: '600', color: Colors.textPrimary }}>
+                          {v.condutorNome2}
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: Colors.textSecondary }}>
+                          2º condutor
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {!temSegundo && (
+                  <Button
+                    mode="outlined"
+                    compact
+                    icon="account-plus"
+                    style={{ marginTop: 10 }}
+                    onPress={() => openVincular(v)}
+                  >
+                    Adicionar condutor
+                  </Button>
+                )}
               </Surface>
             );
           })
@@ -334,7 +367,9 @@ export default function VeiculoDetailScreen() {
         onDismiss={() => setModalVincular(false)}
         maxHeight="70%"
       >
-        <Text variant="titleMedium" style={styles.modalTitle}>Selecionar condutor</Text>
+        <Text variant="titleMedium" style={styles.modalTitle}>
+          {vinculoParaAdicionar ? 'Adicionar 2º condutor' : 'Selecionar condutor'}
+        </Text>
         <Divider style={{ marginBottom: 12 }} />
 
         <TextInput

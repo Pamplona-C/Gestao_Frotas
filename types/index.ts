@@ -118,6 +118,9 @@ export interface Vinculo {
   id:                  string;
   condutorId:          string;
   condutorNome:        string;
+  condutorId2?:        string;
+  condutorNome2?:      string;
+  condutorIds:         string[];  // [condutorId] ou [condutorId, condutorId2]
   veiculoId:           string;
   veiculoFrota:        string;
   veiculoModelo:       string;

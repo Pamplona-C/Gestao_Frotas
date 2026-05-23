@@ -254,8 +254,8 @@ function Home() {
 
 // ──────────────── Gestor Dashboard ────────────────
 const STATUS_FILTERS: { key: OSStatus | 'todas'; label: string }[] = [
-  { key: 'nova',               label: 'Nova' },
   { key: 'todas',              label: 'Todas' },
+  { key: 'nova',               label: 'Nova' },
   { key: 'em_andamento',       label: 'Em andamento' },
   { key: 'em_diagnostico',     label: 'Diagnóstico' },
   { key: 'orcamento_aprovado', label: 'Aprovado' },
@@ -267,7 +267,7 @@ function GestorDashboard() {
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
   const [metrics, setMetrics] = useState({ total: 0, emAndamento: 0, orcamentoAprovado: 0, gastoPreventiva: 0, gastoCorretiva: 0 });
-  const [filtro, setFiltro] = useState<OSStatus | 'todas'>('nova');
+  const [filtro, setFiltro] = useState<OSStatus | 'todas'>('todas');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
