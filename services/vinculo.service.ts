@@ -24,10 +24,29 @@ export function subscribeToVinculosByCondutorId(
   condutorId: string,
   callback: (vinculos: Vinculo[]) => void,
 ): Unsubscribe {
-  const q = query(collection(db, 'vinculos'), where('condutorIds', 'array-contains', condutorId));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => docToVinculo(d.id, d.data())));
+  // Duas queries para cobrir docs antigos (só condutorId) e novos (condutorIds array)
+  const qNew = query(collection(db, 'vinculos'), where('condutorIds', 'array-contains', condutorId));
+  const qOld = query(collection(db, 'vinculos'), where('condutorId', '==', condutorId));
+
+  const state: { new: Vinculo[]; old: Vinculo[] } = { new: [], old: [] };
+
+  function emit() {
+    const merged = new Map<string, Vinculo>();
+    for (const v of [...state.old, ...state.new]) merged.set(v.id, v);
+    callback([...merged.values()]);
+  }
+
+  const unsubNew = onSnapshot(qNew, (snap) => {
+    state.new = snap.docs.map((d) => docToVinculo(d.id, d.data()));
+    emit();
   });
+
+  const unsubOld = onSnapshot(qOld, (snap) => {
+    state.old = snap.docs.map((d) => docToVinculo(d.id, d.data()));
+    emit();
+  });
+
+  return () => { unsubNew(); unsubOld(); };
 }
 
 export function subscribeToVinculosByVeiculoId(
@@ -91,13 +110,16 @@ export async function createVinculo(
 export async function addCondutorToVinculo(
   vinculoId: string,
   condutor2: { uid: string; nome: string },
+  condutor1Id: string,
 ): Promise<void> {
+  // arrayUnion com condutor1Id garante que docs antigos (sem condutorIds) incluam ambos
   await updateDoc(doc(db, 'vinculos', vinculoId), {
     condutorId2:   condutor2.uid,
     condutorNome2: condutor2.nome,
-    condutorIds:   arrayUnion(condutor2.uid),
+    condutorIds:   arrayUnion(condutor1Id, condutor2.uid),
   });
 }
+
 
 export async function updateVinculo(
   id: string,

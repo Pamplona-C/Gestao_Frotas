@@ -130,7 +130,7 @@ export default function VeiculoDetailScreen() {
     setSalvando(true);
     try {
       if (vinculoParaAdicionar) {
-        await addCondutorToVinculo(vinculoParaAdicionar.id, { uid: condutor.uid, nome: condutor.nome });
+        await addCondutorToVinculo(vinculoParaAdicionar.id, { uid: condutor.uid, nome: condutor.nome }, vinculoParaAdicionar.condutorId);
       } else {
         await createVinculo({
           condutorId:    condutor.uid,
@@ -184,7 +184,7 @@ export default function VeiculoDetailScreen() {
     );
   };
 
-  if (carregando || !veiculo) {
+if (carregando || !veiculo) {
     if (currentUser?.perfil !== 'gestor') {
       return <Redirect href="/(tabs)" />;
     }
