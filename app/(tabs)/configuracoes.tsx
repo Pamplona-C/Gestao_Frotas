@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   topBar: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   pageTitle: { fontWeight: '700', color: Colors.textPrimary },
 
-  scroll: { padding: 20, gap: 8, paddingBottom: 110 },
+  scroll: { padding: 20, gap: 8, paddingBottom: 130 },
 
   // Profile banner
   profileBanner: {

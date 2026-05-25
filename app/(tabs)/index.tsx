@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6,
   },
   veiculoActionText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingBottom: 100, flexGrow: 1 },
+  list: { paddingHorizontal: 20, paddingBottom: 130, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   // Gestor
