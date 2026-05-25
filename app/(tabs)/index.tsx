@@ -289,10 +289,14 @@ function GestorDashboard() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
-  const filtered = useMemo(
-    () => filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro),
-    [filtro, ordens],
-  );
+  const filtered = useMemo(() => {
+    const base = filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro);
+    return [...base].sort((a, b) => {
+      const aMin = a.gestorId === currentUser?.uid ? 0 : 1;
+      const bMin = b.gestorId === currentUser?.uid ? 0 : 1;
+      return aMin - bMin;
+    });
+  }, [filtro, ordens, currentUser?.uid]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -367,6 +371,7 @@ function GestorDashboard() {
               onPress={() => router.push(`/os/${os.id}`)}
               fornecedor={os.fornecedorId ? fornecedoresMap.get(os.fornecedorId) : null}
               showValor
+              highlight={os.gestorId === currentUser?.uid}
             />
           ))}
           {!loading && filtered.length === 0 && (

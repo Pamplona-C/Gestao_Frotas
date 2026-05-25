@@ -14,9 +14,10 @@ interface Props {
   /** Fornecedor pré-carregado pelo componente pai — elimina N+1 reads. */
   fornecedor?: Fornecedor | null;
   showValor?: boolean;
+  highlight?: boolean;
 }
 
-export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
+export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, showValor = false, highlight = false }: Props) {
   const dataFormatada = format(parseISO(os.criadoEm), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
   const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
   const veiculoTitulo = veiculoNome || `Frota ${os.frota}`;
@@ -25,6 +26,7 @@ export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, show
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <Surface style={styles.card} elevation={1}>
+        {highlight && <View style={styles.highlightStrip} />}
         <View style={styles.header}>
           <View style={styles.vehicleBlock}>
             <Text variant="bodyMedium" style={styles.vehicleTitle} numberOfLines={1}>
@@ -75,7 +77,8 @@ export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, show
   prev.os.placa === next.os.placa &&
   prev.os.frota === next.os.frota &&
   prev.fornecedor?.id === next.fornecedor?.id &&
-  prev.showValor === next.showValor
+  prev.showValor === next.showValor &&
+  prev.highlight === next.highlight
 );
 
 const styles = StyleSheet.create({
@@ -85,6 +88,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     marginBottom: 10,
     gap: 6,
+  },
+  highlightStrip: {
+    position: 'absolute',
+    left: 0,
+    top: 1,
+    bottom: 1,
+    width: 3,
+    backgroundColor: Colors.primary,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   vehicleBlock: { flex: 1, paddingRight: 8, gap: 5 },
