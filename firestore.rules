@@ -52,11 +52,15 @@ service cloud.firestore {
     }
 
     // Vínculos condutor↔veículo: gestor cria/encerra; condutores vinculados lêem e atualizam (checklist)
+    function isCondutorDoVinculo() {
+      return request.auth.uid == resource.data.condutorId ||
+             (resource.data.condutorIds != null && request.auth.uid in resource.data.condutorIds);
+    }
+
     match /vinculos/{id} {
-      allow read:   if isAuthenticated() &&
-        (isGestor() || request.auth.uid in resource.data.condutorIds);
+      allow read:   if isAuthenticated() && (isGestor() || isCondutorDoVinculo());
       allow create: if isGestor();
-      allow update: if isGestor() || request.auth.uid in resource.data.condutorIds;
+      allow update: if isGestor() || isCondutorDoVinculo();
       allow delete: if false;
     }
 
