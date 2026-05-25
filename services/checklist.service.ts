@@ -86,6 +86,48 @@ export async function createChecklist(
   return { ...payload, id: checklistRef.id };
 }
 
+export async function skipChecklistDev(
+  vinculoId: string,
+  tipo: 'entrada' | 'saida',
+  condutorId: string,
+  veiculoId: string,
+  veiculoTipo: Checklist['veiculoTipo'],
+): Promise<void> {
+  if (!__DEV__) return;
+
+  const checklistRef = doc(collection(db, 'checklists'));
+  const vinculoRef   = doc(db, 'vinculos', vinculoId);
+
+  const payload: Omit<Checklist, 'id'> = {
+    tipo,
+    vinculoId,
+    condutorId,
+    veiculoId,
+    veiculoTipo,
+    fotos: {},
+    completadoEm: new Date().toISOString(),
+  };
+
+  await runTransaction(db, async (tx) => {
+    const vinculoSnap = await tx.get(vinculoRef);
+    tx.set(checklistRef, payload);
+
+    if (tipo === 'entrada') {
+      tx.update(vinculoRef, { checklistEntradaId: checklistRef.id, pendenciaChecklist: null });
+    } else {
+      const updates: Record<string, unknown> = {
+        checklistSaidaId: checklistRef.id,
+        pendenciaChecklist: null,
+      };
+      if (vinculoSnap.data()?.status === 'ativo') {
+        updates.status      = 'inativo';
+        updates.encerradoEm = new Date().toISOString();
+      }
+      tx.update(vinculoRef, updates);
+    }
+  });
+}
+
 export async function getChecklistsByVinculo(vinculoId: string): Promise<Checklist[]> {
   const q = query(collection(db, 'checklists'), where('vinculoId', '==', vinculoId));
   const snap = await getDocs(q);

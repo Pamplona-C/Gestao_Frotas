@@ -19,7 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { Vinculo } from '../../../types';
 import { getVinculoById } from '../../../services/vinculo.service';
-import { createChecklist } from '../../../services/checklist.service';
+import { createChecklist, skipChecklistDev } from '../../../services/checklist.service';
 import {
   getAngulosByTipo,
   CHECKLIST_ANGULO_LABELS,
@@ -251,6 +251,28 @@ export default function ChecklistScreen() {
               Fotografe todos os {total} ângulos para concluir
             </Text>
           )}
+
+          {__DEV__ && (
+            <Button
+              mode="outlined"
+              icon="flash"
+              onPress={async () => {
+                if (!vinculo || !currentUser) return;
+                setEnviando(true);
+                try {
+                  await skipChecklistDev(vinculo.id, tipo, currentUser.uid, vinculo.veiculoId, vinculo.veiculoTipo);
+                  router.back();
+                } finally {
+                  setEnviando(false);
+                }
+              }}
+              disabled={enviando}
+              style={styles.btnDev}
+              textColor="#D97706"
+            >
+              Pular checklist [DEV]
+            </Button>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -354,6 +376,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   btnConcluir: { backgroundColor: Colors.primary, borderRadius: 10 },
+  btnDev: { borderRadius: 10, marginTop: 10, borderColor: '#D97706' },
   enviandoBox: {
     flexDirection: 'row',
     alignItems: 'center',
