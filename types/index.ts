@@ -19,12 +19,12 @@ export interface Usuario {
  */
 export interface AppUser {
   uid:          string;
-  /** @deprecated use uid — remover após migração Firestore */
-  id:           string;
+  /** @deprecated use uid */
+  id?:          string;
   nome:         string;
   email:        string;
   perfil:       UserPerfil;
-  departamento: string;
+  departamento?: string;
   photoURL?:    string | null;
   ativo?:       boolean;
   nomeBusca?:   string;
@@ -168,6 +168,8 @@ export interface OrdemServico {
   dataDesejada?: string;
   horario?: string;
   fornecedorId?: string;
+  fornecedorNome?: string;
+  tipo?: TipoServico;
   status: OSStatus;
   criadoEm: string;
   notaInterna?: string;
