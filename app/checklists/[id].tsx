@@ -2,7 +2,9 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
+  StatusBar,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -46,6 +48,7 @@ export default function ChecklistDetailScreen() {
   const [vinculo, setVinculo] = useState<Vinculo | null>(null);
   const [loading, setLoading] = useState(true);
   const [criandoOS, setCriandoOS] = useState(false);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -214,13 +217,34 @@ export default function ChecklistDetailScreen() {
 
         <View style={styles.photoGrid}>
           {fotos.map(([angulo, url]) => (
-            <Surface key={angulo} style={styles.photoCard} elevation={1}>
-              <Image source={{ uri: url }} style={styles.photo} contentFit="cover" />
-              <Text style={styles.photoText} numberOfLines={2}>{photoLabel(angulo)}</Text>
-            </Surface>
+            <TouchableOpacity key={angulo} onPress={() => setFotoAmpliada(url)} activeOpacity={0.85}>
+              <Surface style={styles.photoCard} elevation={1}>
+                <Image source={{ uri: url }} style={styles.photo} contentFit="cover" />
+                <View style={styles.photoFooter}>
+                  <Text style={styles.photoText} numberOfLines={2}>{photoLabel(angulo)}</Text>
+                  <Ionicons name="expand-outline" size={16} color={Colors.textHint} />
+                </View>
+              </Surface>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
+
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" statusBarTranslucent>
+        <StatusBar hidden />
+        <View style={styles.modalBg}>
+          <TouchableOpacity style={styles.modalClose} onPress={() => setFotoAmpliada(null)} hitSlop={12}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {fotoAmpliada && (
+            <Image
+              source={{ uri: fotoAmpliada }}
+              style={styles.modalPhoto}
+              contentFit="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -295,13 +319,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photo: { width: '100%', height: 220, backgroundColor: Colors.border },
-  photoText: {
-    color: Colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
+  photoFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  photoText: { color: Colors.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  modalClose: { position: 'absolute', top: 52, right: 20, zIndex: 10 },
+  modalPhoto: { width: '100%', height: '80%' },
   emptyState: {
     flex: 1,
     alignItems: 'center',

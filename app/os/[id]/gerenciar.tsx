@@ -148,7 +148,7 @@ export default function GerenciarOSScreen() {
     const busca = buscaGestor.toLowerCase().trim();
     return gestores.filter(
       (g) => g.uid !== currentUser?.uid &&
-        (!busca || g.nome.toLowerCase().includes(busca) || g.departamento.toLowerCase().includes(busca))
+        (!busca || g.nome.toLowerCase().includes(busca) || g.departamento?.toLowerCase().includes(busca))
     );
   }, [gestores, buscaGestor, currentUser?.uid]);
 
