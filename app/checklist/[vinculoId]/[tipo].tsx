@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Vinculo } from '../../../types';
 import { getVinculoById } from '../../../services/vinculo.service';
 import { createChecklist, skipChecklistDev } from '../../../services/checklist.service';
+import { prepararFotoParaUpload } from '../../../services/storage.service';
 import {
   getAngulosByTipo,
   CHECKLIST_ANGULO_LABELS,

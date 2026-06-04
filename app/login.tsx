@@ -103,7 +103,7 @@ export default function LoginScreen() {
                 contentFit="contain"
               />
             </View>
-            <Text variant="headlineMedium" style={styles.appName}>FrotaAtiva</Text>
+            <Text variant="headlineMedium" style={styles.appName}>Moovia</Text>
             <Text variant="bodyMedium" style={styles.appSub}>
               Gestão de frotas inteligentes
             </Text>

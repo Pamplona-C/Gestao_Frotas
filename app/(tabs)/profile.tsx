@@ -379,7 +379,7 @@ export default function ProfileScreen() {
         </Surface>
 
         {/* App version */}
-        <Text variant="labelSmall" style={styles.version}>FrotaAtiva v1.0.0 · Protótipo</Text>
+        <Text variant="labelSmall" style={styles.version}>Moovia v1.0.0 · Protótipo</Text>
       </ScrollView>
 
       <Portal>
