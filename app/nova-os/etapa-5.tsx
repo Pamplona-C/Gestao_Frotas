@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   StyleSheet,
@@ -13,8 +13,6 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
-import { getVeiculoByPlaca } from '../../services/veiculo.service';
-import { Veiculo } from '../../types';
 import { Colors } from '../../constants/colors';
 
 function SummaryRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -58,12 +56,7 @@ function SummarySection({
 export default function Etapa5() {
   const router = useRouter();
   const store = useNovaOSStore();
-  const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
-
-  useEffect(() => {
-    if (!store.placa) return;
-    getVeiculoByPlaca(store.placa).then((v) => setVeiculo(v));
-  }, [store.placa]);
+  const veiculoLabel = `${store.veiculoMarca} ${store.veiculoModelo}`.trim();
 
   const dataLabel = store.dataDesejada
     ? format(parseISO(store.dataDesejada), "dd/MM/yyyy", { locale: ptBR })
@@ -86,20 +79,14 @@ export default function Etapa5() {
 
         {/* Veículo */}
         <SummarySection title="Veículo" step={1} onEdit={() => router.push('/nova-os/etapa-1')}>
-          <SummaryRow icon="car-outline" label="Placa" value={store.placa || '—'} />
+          <SummaryRow icon="car-outline" label="Veículo" value={veiculoLabel || `Frota ${store.frota || '—'}`} />
+          <SummaryRow icon="pricetag-outline" label="Frota / placa" value={`Frota ${store.frota || '—'}${store.placa ? ` · ${store.placa}` : ''}`} />
           <SummaryRow
             icon="speedometer-outline"
             label="Hodômetro"
             value={store.hodometro ? `${store.hodometro} km` : '—'}
           />
           <SummaryRow icon="location-outline" label="Cidade" value={store.cidade || '—'} />
-          {veiculo && (
-            <SummaryRow
-              icon="information-circle-outline"
-              label="Modelo"
-              value={`${veiculo.modelo} · Frota ${veiculo.frota}`}
-            />
-          )}
         </SummarySection>
 
         {/* Serviços */}

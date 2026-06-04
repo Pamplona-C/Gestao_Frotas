@@ -40,7 +40,7 @@ const CHECKLIST_CFG: Record<ChecklistStatus, { label: string; color: string; bg:
 };
 
 // ──────────────── Condutor Home ────────────────
-function CondutorHome() {
+function Home() {
   const { currentUser } = useAuthStore();
   const router = useRouter();
   const online = useConectividade();
@@ -104,7 +104,7 @@ function CondutorHome() {
         </View>
         <View style={styles.headerRight}>
           <NotificationBell />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push('/perfil')} activeOpacity={0.8}>
             {currentUser?.photoURL ? (
               <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
             ) : (
@@ -243,6 +243,7 @@ function CondutorHome() {
 
       <FAB
         icon={online ? 'plus' : 'cloud-off-outline'}
+        color="#FFFFFF"
         style={[styles.fab, { bottom: bottomInset + 80 }, !online && styles.fabOffline]}
         onPress={() => router.push('/nova-os/etapa-1')}
         label="Nova OS"
@@ -253,11 +254,11 @@ function CondutorHome() {
 
 // ──────────────── Gestor Dashboard ────────────────
 const STATUS_FILTERS: { key: OSStatus | 'todas'; label: string }[] = [
-  { key: 'todas',             label: 'Todas' },
-  { key: 'nova',              label: 'Nova' },
-  { key: 'em_andamento',      label: 'Em andamento' },
-  { key: 'em_diagnostico',    label: 'Diagnóstico' },
-  { key: 'orcamento_aprovado',label: 'Aprovado' },
+  { key: 'todas',              label: 'Todas' },
+  { key: 'nova',               label: 'Nova' },
+  { key: 'em_andamento',       label: 'Em andamento' },
+  { key: 'em_diagnostico',     label: 'Diagnóstico' },
+  { key: 'orcamento_aprovado', label: 'Aprovado' },
 ];
 
 function GestorDashboard() {
@@ -288,10 +289,14 @@ function GestorDashboard() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
-  const filtered = useMemo(
-    () => filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro),
-    [filtro, ordens],
-  );
+  const filtered = useMemo(() => {
+    const base = filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro);
+    return [...base].sort((a, b) => {
+      const aMin = a.gestorId === currentUser?.uid ? 0 : 1;
+      const bMin = b.gestorId === currentUser?.uid ? 0 : 1;
+      return aMin - bMin;
+    });
+  }, [filtro, ordens, currentUser?.uid]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -304,7 +309,7 @@ function GestorDashboard() {
         </View>
         <View style={styles.headerRight}>
           <NotificationBell />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push('/perfil')} activeOpacity={0.8}>
             {currentUser?.photoURL ? (
               <Image source={{ uri: currentUser.photoURL }} style={styles.avatarPhoto} cachePolicy="memory-disk" transition={200} />
             ) : (
@@ -366,6 +371,7 @@ function GestorDashboard() {
               onPress={() => router.push(`/os/${os.id}`)}
               fornecedor={os.fornecedorId ? fornecedoresMap.get(os.fornecedorId) : null}
               showValor
+              highlight={os.gestorId === currentUser?.uid}
             />
           ))}
           {!loading && filtered.length === 0 && (
@@ -385,7 +391,7 @@ function GestorDashboard() {
 // ──────────────── Export ────────────────
 export default function HomeScreen() {
   const { currentUser } = useAuthStore();
-  return currentUser?.perfil === 'gestor' ? <GestorDashboard /> : <CondutorHome />;
+  return currentUser?.perfil === 'gestor' ? <GestorDashboard /> : <Home />;
 }
 
 const styles = StyleSheet.create({
@@ -478,7 +484,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6,
   },
   veiculoActionText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingBottom: 100, flexGrow: 1 },
+  list: { paddingHorizontal: 20, paddingBottom: 130, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
   // Gestor

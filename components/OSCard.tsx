@@ -14,22 +14,27 @@ interface Props {
   /** Fornecedor pré-carregado pelo componente pai — elimina N+1 reads. */
   fornecedor?: Fornecedor | null;
   showValor?: boolean;
+  highlight?: boolean;
 }
 
-export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, showValor = false }: Props) {
+export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, showValor = false, highlight = false }: Props) {
   const dataFormatada = format(parseISO(os.criadoEm), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
+  const veiculoNome = [os.veiculoMarca, os.veiculoModelo].filter(Boolean).join(' ').trim();
+  const veiculoTitulo = veiculoNome || `Frota ${os.frota}`;
+  const veiculoSubtitulo = [`Frota ${os.frota}`, os.placa].filter(Boolean).join(' · ');
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <Surface style={styles.card} elevation={1}>
+        {highlight && <View style={styles.highlightStrip} />}
         <View style={styles.header}>
-          <View style={styles.plateRow}>
-            <View style={styles.plateBadge}>
-              <Text style={styles.plateText}>{os.placa}</Text>
-            </View>
-            <View style={styles.frotaBadge}>
-              <Text style={styles.frotaText}>Frota {os.frota}</Text>
-            </View>
+          <View style={styles.vehicleBlock}>
+            <Text variant="bodyMedium" style={styles.vehicleTitle} numberOfLines={1}>
+              {veiculoTitulo}
+            </Text>
+            <Text variant="bodySmall" style={styles.vehicleMeta} numberOfLines={1}>
+              {veiculoSubtitulo}
+            </Text>
           </View>
           <StatusBadge status={os.status} />
         </View>
@@ -67,8 +72,13 @@ export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, show
   prev.os.status === next.os.status &&
   prev.os.valorTotal === next.os.valorTotal &&
   prev.os.fornecedorId === next.os.fornecedorId &&
+  prev.os.veiculoMarca === next.os.veiculoMarca &&
+  prev.os.veiculoModelo === next.os.veiculoModelo &&
+  prev.os.placa === next.os.placa &&
+  prev.os.frota === next.os.frota &&
   prev.fornecedor?.id === next.fornecedor?.id &&
-  prev.showValor === next.showValor
+  prev.showValor === next.showValor &&
+  prev.highlight === next.highlight
 );
 
 const styles = StyleSheet.create({
@@ -79,8 +89,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 6,
   },
+  highlightStrip: {
+    position: 'absolute',
+    left: 0,
+    top: 1,
+    bottom: 1,
+    width: 3,
+    backgroundColor: Colors.primary,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  plateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  vehicleBlock: { flex: 1, paddingRight: 8, gap: 5 },
+  vehicleTitle: { color: Colors.textPrimary, fontWeight: '700' },
+  vehicleMeta: { color: Colors.textSecondary },
+  plateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   plateBadge: {
     backgroundColor: Colors.textPrimary,
     borderRadius: 6,

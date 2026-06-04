@@ -7,6 +7,7 @@ import {
   Modal,
   Dimensions,
   Linking,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
@@ -18,10 +19,11 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
-import { subscribeToOSById } from '../../../services/os.service';
+import { subscribeToOSById, marcarEntregueOficina, marcarRetornoOficina } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
+import { getVeiculoById } from '../../../services/veiculo.service';
 import { useAuthStore } from '../../../store/auth.store';
-import { OrdemServico, Fornecedor } from '../../../types';
+import { OrdemServico, Fornecedor, Veiculo } from '../../../types';
 import { Colors } from '../../../constants/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -89,6 +91,8 @@ export default function OSDetailScreen() {
   const { currentUser } = useAuthStore();
   const [os, setOS] = useState<OrdemServico | null>(null);
   const [fornecedor, setFornecedor] = useState<Fornecedor | null>(null);
+  const [veiculoFallback, setVeiculoFallback] = useState<Veiculo | null>(null);
+  const [loadingOficina, setLoadingOficina] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,6 +106,13 @@ export default function OSDetailScreen() {
           });
         } else {
           setFornecedor(null);
+        }
+        if (data?.veiculoId && (!data.veiculoMarca || !data.veiculoModelo)) {
+          getVeiculoById(data.veiculoId).then((v) => {
+            if (mounted) setVeiculoFallback(v);
+          });
+        } else {
+          setVeiculoFallback(null);
         }
       });
       return () => {
@@ -138,6 +149,58 @@ export default function OSDetailScreen() {
     .slice(0, 2)
     .map((n) => n[0])
     .join('');
+  const veiculoMarca = os.veiculoMarca ?? veiculoFallback?.marca;
+  const veiculoModelo = os.veiculoModelo ?? veiculoFallback?.modelo;
+  const veiculoTipo = os.veiculoTipo ?? veiculoFallback?.tipo;
+  const veiculoNome = [veiculoMarca, veiculoModelo].filter(Boolean).join(' ').trim();
+  const veiculoTitulo = veiculoNome || `Frota ${os.frota}`;
+  const veiculoTipoLabel = veiculoTipo === 'moto' ? 'Moto' : veiculoTipo === 'carro' ? 'Carro' : '—';
+
+  const handleEntregue = () => {
+    Alert.alert(
+      'Confirmar entrega',
+      'Confirmar que o veículo foi entregue na oficina agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setLoadingOficina(true);
+            try {
+              await marcarEntregueOficina(os.id);
+            } catch {
+              Alert.alert('Erro', 'Não foi possível registrar a entrega.');
+            } finally {
+              setLoadingOficina(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRetorno = () => {
+    Alert.alert(
+      'Confirmar retorno',
+      'Confirmar que o veículo voltou da oficina agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setLoadingOficina(true);
+            try {
+              await marcarRetornoOficina(os.id);
+            } catch {
+              Alert.alert('Erro', 'Não foi possível registrar o retorno.');
+            } finally {
+              setLoadingOficina(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -147,14 +210,15 @@ export default function OSDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.topCenter}>
-          <View style={styles.plateBadge}>
-            <Text style={styles.plateText}>{os.placa}</Text>
-          </View>
-          <View style={styles.frotaBadge}>
-            <Text style={styles.frotaText}>Frota {os.frota}</Text>
-          </View>
+          <Text variant="titleSmall" style={styles.topVehicleTitle} numberOfLines={1}>
+            {veiculoTitulo}
+          </Text>
+          <Text variant="labelSmall" style={styles.topVehicleMeta} numberOfLines={1}>
+            Frota {os.frota}{os.placa ? ` · ${os.placa}` : ''}
+          </Text>
         </View>
-        {currentUser?.perfil === 'gestor' ? (
+        {currentUser?.perfil === 'gestor' &&
+         (!os.gestorId || os.gestorId === currentUser.uid) ? (
           <TouchableOpacity
             onPress={() => router.push(`/os/${os.id}/gerenciar`)}
             style={styles.manageBtn}
@@ -177,6 +241,25 @@ export default function OSDetailScreen() {
         <Surface style={styles.card} elevation={1}>
           <Text variant="titleSmall" style={styles.cardTitle}>Informações gerais</Text>
           <Divider style={{ marginBottom: 10 }} />
+
+          <View style={styles.vehicleInfoBox}>
+            <View style={styles.vehicleIcon}>
+              <Ionicons
+                name={veiculoTipo === 'moto' ? 'bicycle-outline' : 'car-outline'}
+                size={20}
+                color={Colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="labelSmall" style={{ color: Colors.textHint }}>Veículo</Text>
+              <Text variant="bodyMedium" style={styles.vehicleInfoTitle}>
+                {veiculoTitulo}
+              </Text>
+              <Text variant="labelSmall" style={styles.vehicleInfoMeta}>
+                Frota {os.frota}{os.placa ? ` · ${os.placa}` : ''} · {veiculoTipoLabel}
+              </Text>
+            </View>
+          </View>
 
           {/* Condutor com foto */}
           <View style={styles.condutorRow}>
@@ -311,6 +394,60 @@ export default function OSDetailScreen() {
           <Timeline os={os} />
         </Surface>
 
+        {/* Veículo na oficina */}
+        {(currentUser?.perfil === 'condutor' || os.entregueOficinaEm) && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleSmall" style={styles.cardTitle}>Veículo na oficina</Text>
+            <Divider style={{ marginBottom: 12 }} />
+
+            {/* Condutor: botão de entrega quando ainda não entregou */}
+            {currentUser?.perfil === 'condutor' && !os.entregueOficinaEm && (
+              <Button
+                mode="contained"
+                icon="garage-open"
+                loading={loadingOficina}
+                disabled={loadingOficina}
+                onPress={handleEntregue}
+              >
+                Marcar como entregue na oficina
+              </Button>
+            )}
+
+            {/* Entregue — timestamp + botão de retorno (condutor) */}
+            {os.entregueOficinaEm && (
+              <View style={styles.oficinRow}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                <Text variant="bodySmall" style={{ color: Colors.textSecondary, flex: 1 }}>
+                  Entregue em {format(new Date(os.entregueOficinaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </Text>
+              </View>
+            )}
+
+            {currentUser?.perfil === 'condutor' && os.entregueOficinaEm && !os.retornouOficinaEm && (
+              <Button
+                mode="outlined"
+                icon="home-import-outline"
+                style={{ marginTop: 10 }}
+                loading={loadingOficina}
+                disabled={loadingOficina}
+                onPress={handleRetorno}
+              >
+                Marcar retorno do veículo
+              </Button>
+            )}
+
+            {/* Retorno — timestamp */}
+            {os.retornouOficinaEm && (
+              <View style={[styles.oficinRow, { marginTop: 6 }]}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                <Text variant="bodySmall" style={{ color: Colors.textSecondary, flex: 1 }}>
+                  Retornou em {format(new Date(os.retornouOficinaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </Text>
+              </View>
+            )}
+          </Surface>
+        )}
+
         {/* Serviços realizados */}
         {os.servicosRealizados && os.servicosRealizados.length > 0 && (
           <Surface style={styles.card} elevation={1}>
@@ -369,7 +506,8 @@ export default function OSDetailScreen() {
         )}
 
         {/* Gestor action button */}
-        {currentUser?.perfil === 'gestor' && (
+        {currentUser?.perfil === 'gestor' &&
+         (!os.gestorId || os.gestorId === currentUser.uid) && (
           <Button
             mode="contained"
             style={styles.btn}
@@ -398,7 +536,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
   },
-  topCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 10 },
+  topVehicleTitle: { color: Colors.textPrimary, fontWeight: '700', textAlign: 'center' },
+  topVehicleMeta: { color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
   plateBadge: {
     backgroundColor: Colors.textPrimary,
     borderRadius: 6,
@@ -424,6 +564,28 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  oficinRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  vehicleInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 12,
+  },
+  vehicleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleInfoTitle: { color: Colors.textPrimary, fontWeight: '700' },
+  vehicleInfoMeta: { color: Colors.textSecondary, marginTop: 1 },
   condutorRow: {
     flexDirection: 'row',
     alignItems: 'center',

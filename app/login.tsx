@@ -85,11 +85,11 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.kav}
+    >
+      <SafeAreaView style={styles.safe}>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
@@ -182,13 +182,14 @@ export default function LoginScreen() {
             {/* TODO: Google Sign-In — implementação futura */}
           </Surface>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#E7E6E1' },
+  kav: { flex: 1, backgroundColor: '#E7E6E1' },
+  safe: { flex: 1 },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center', gap: 24 },
   brand: { alignItems: 'center', gap: 8, marginBottom: 8},
   logoWrapper: {

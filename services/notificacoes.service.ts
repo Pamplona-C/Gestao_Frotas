@@ -5,8 +5,11 @@ import {
   addDoc,
   query,
   where,
+  orderBy,
+  limit,
   doc,
   updateDoc,
+  writeBatch,
   Timestamp,
   Unsubscribe,
 } from 'firebase/firestore';
@@ -36,13 +39,12 @@ export function subscribeToNotificacoes(
   const q = query(
     collection(db, 'notificacoes'),
     where('userId', '==', uid),
+    orderBy('createdAt', 'desc'),
+    limit(50),
   );
 
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((d) => docToNotificacao(d.id, d.data()))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    callback(items);
+    callback(snap.docs.map((d) => docToNotificacao(d.id, d.data())));
   });
 }
 
@@ -62,7 +64,9 @@ export async function markAsRead(id: string): Promise<void> {
 }
 
 export async function markAllAsRead(ids: string[]): Promise<void> {
-  await Promise.all(ids.map(markAsRead));
+  const batch = writeBatch(db);
+  ids.forEach((id) => batch.update(doc(db, 'notificacoes', id), { read: true }));
+  await batch.commit();
 }
 
 export async function createNotification(

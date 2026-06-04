@@ -19,14 +19,16 @@ export interface Usuario {
  */
 export interface AppUser {
   uid:          string;
-  /** @deprecated use uid — remover após migração Firestore */
-  id:           string;
+  /** @deprecated use uid */
+  id?:          string;
   nome:         string;
   email:        string;
   perfil:       UserPerfil;
-  departamento: string;
+  departamento?: string;
   photoURL?:    string | null;
   ativo?:       boolean;
+  nomeBusca?:   string;
+  departamentoBusca?: string;
 }
 
 /** Documento Firestore /usuarios/{uid} */
@@ -38,6 +40,8 @@ export interface UserProfile {
   photoURL?:      string | null;
   fcmToken?:      string | null;
   ativo?:         boolean;
+  nomeBusca?:     string;
+  departamentoBusca?: string;
 }
 
 export type VeiculoTipo = 'carro' | 'moto';
@@ -108,11 +112,15 @@ export interface Notificacao {
 }
 
 export type VinculoStatus = 'ativo' | 'inativo';
+export type ChecklistPendencia = 'entrada' | 'saida' | null;
 
 export interface Vinculo {
   id:                  string;
   condutorId:          string;
   condutorNome:        string;
+  condutorId2?:        string;
+  condutorNome2?:      string;
+  condutorIds:         string[];  // [condutorId] ou [condutorId, condutorId2]
   veiculoId:           string;
   veiculoFrota:        string;
   veiculoModelo:       string;
@@ -121,6 +129,7 @@ export interface Vinculo {
   veiculoTipo:         VeiculoTipo;
   checklistEntradaId?: string;
   checklistSaidaId?:   string;
+  pendenciaChecklist?: ChecklistPendencia;
   status:              VinculoStatus;
   criadoEm:            string;
   gestorId:            string;
@@ -142,6 +151,11 @@ export interface Checklist {
 export interface OrdemServico {
   id: string;
   veiculoId?: string;
+  origemChecklistId?: string;
+  origemVinculoId?: string;
+  veiculoMarca?: string;
+  veiculoModelo?: string;
+  veiculoTipo?: VeiculoTipo;
   placa?: string;
   frota: string;
   condutorId: string;
@@ -154,6 +168,8 @@ export interface OrdemServico {
   dataDesejada?: string;
   horario?: string;
   fornecedorId?: string;
+  fornecedorNome?: string;
+  tipo?: TipoServico;
   status: OSStatus;
   criadoEm: string;
   notaInterna?: string;
@@ -165,6 +181,8 @@ export interface OrdemServico {
   gestorPhotoURL?:      string | null;
   gestorDepartamento?:  string;
   statusHistory?:       StatusEntry[];
+  entregueOficinaEm?:   string;
+  retornouOficinaEm?:   string;
   servicosRealizados?:  ServicoRealizado[];
   valorTotal?:          number;
   gastoPreventiva?:     number;

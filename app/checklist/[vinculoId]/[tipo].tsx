@@ -154,7 +154,7 @@ export default function ChecklistScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
@@ -251,6 +251,28 @@ export default function ChecklistScreen() {
             <Text style={styles.hintText}>
               Fotografe todos os {total} ângulos para concluir
             </Text>
+          )}
+
+          {__DEV__ && (
+            <Button
+              mode="outlined"
+              icon="flash"
+              onPress={async () => {
+                if (!vinculo || !currentUser) return;
+                setEnviando(true);
+                try {
+                  await skipChecklistDev(vinculo.id, tipo, currentUser.uid, vinculo.veiculoId, vinculo.veiculoTipo);
+                  router.back();
+                } finally {
+                  setEnviando(false);
+                }
+              }}
+              disabled={enviando}
+              style={styles.btnDev}
+              textColor="#D97706"
+            >
+              Pular checklist [DEV]
+            </Button>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -355,6 +377,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   btnConcluir: { backgroundColor: Colors.primary, borderRadius: 10 },
+  btnDev: { borderRadius: 10, marginTop: 10, borderColor: '#D97706' },
   enviandoBox: {
     flexDirection: 'row',
     alignItems: 'center',

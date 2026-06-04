@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { TextInput, Text, Surface } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { MUNICIPIOS_BR } from '../data/municipios';
@@ -13,7 +13,7 @@ interface Props {
   errorMessage?: string;
 }
 
-const MAX_SUGESTOES = 6;
+const MAX_SUGESTOES = 50;
 const NORM_RE = /[̀-ͯ]/g;
 
 // Pré-computado uma vez no carregamento do bundle — nunca recalculado
@@ -25,14 +25,13 @@ const MUNICIPIOS_NORM = MUNICIPIOS_BR.map((c) => ({
 function filtrar(query: string): string[] {
   if (query.length < 2) return [];
   const q = query.toLowerCase().normalize('NFD').replace(NORM_RE, '');
-  const result: string[] = [];
+  const prefix: string[] = [];
+  const contains: string[] = [];
   for (const m of MUNICIPIOS_NORM) {
-    if (m.norm.includes(q)) {
-      result.push(m.original);
-      if (result.length === MAX_SUGESTOES) break;
-    }
+    if (m.norm.startsWith(q)) prefix.push(m.original);
+    else if (m.norm.includes(q)) contains.push(m.original);
   }
-  return result;
+  return [...prefix, ...contains].slice(0, MAX_SUGESTOES);
 }
 
 export function CidadeAutocomplete({ label = 'Cidade', value, onChange, error, errorMessage }: Props) {
@@ -68,13 +67,14 @@ export function CidadeAutocomplete({ label = 'Cidade', value, onChange, error, e
       ) : null}
       {sugestoes.length > 0 ? (
         <Surface style={styles.dropdown} elevation={4}>
-          <FlatList
-            data={sugestoes}
-            keyExtractor={(c) => c}
+          <ScrollView
+            style={styles.dropdownList}
             keyboardShouldPersistTaps="handled"
-            scrollEnabled={false}
-            renderItem={({ item, index }) => (
+            nestedScrollEnabled
+          >
+            {sugestoes.map((item, index) => (
               <TouchableOpacity
+                key={item}
                 style={[styles.item, index < sugestoes.length - 1 && styles.itemBorder]}
                 onPress={() => onSelect(item)}
                 activeOpacity={0.7}
@@ -82,8 +82,8 @@ export function CidadeAutocomplete({ label = 'Cidade', value, onChange, error, e
                 <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
                 <Text variant="bodyMedium" style={{ color: Colors.textPrimary }}>{item}</Text>
               </TouchableOpacity>
-            )}
-          />
+            ))}
+          </ScrollView>
         </Surface>
       ) : null}
     </View>
@@ -98,6 +98,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     overflow: 'hidden',
     zIndex: 99,
+  },
+  dropdownList: {
+    maxHeight: 264,
   },
   item: {
     flexDirection: 'row',

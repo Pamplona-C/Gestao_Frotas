@@ -139,7 +139,7 @@ export async function createOS(
   const firstEntry: StatusEntry = {
     status: 'nova',
     changedAt: new Date().toISOString(),
-    changedBy: os.condutorNome,
+    changedBy: os.gestorNome ?? os.condutorNome,
   };
   const payload = Object.fromEntries(
     Object.entries({
@@ -159,9 +159,22 @@ export async function appendStatusEntry(osId: string, entry: StatusEntry): Promi
   });
 }
 
+
 export async function updateOS(id: string, updates: Partial<OrdemServico>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _id, criadoEm: _ts, ...rest } = updates as any;
   const data = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
   await updateDoc(doc(db, 'ordens-servico', id), data);
+}
+
+export async function marcarEntregueOficina(osId: string): Promise<void> {
+  await updateDoc(doc(db, 'ordens-servico', osId), {
+    entregueOficinaEm: new Date().toISOString(),
+  });
+}
+
+export async function marcarRetornoOficina(osId: string): Promise<void> {
+  await updateDoc(doc(db, 'ordens-servico', osId), {
+    retornouOficinaEm: new Date().toISOString(),
+  });
 }
