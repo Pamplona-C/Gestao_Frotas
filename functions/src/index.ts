@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 admin.initializeApp();
@@ -251,7 +251,22 @@ export const onVinculoCriado = onDocumentCreated(
   },
 );
 
-// ── Trigger 4: Lembretes diários de OS agendadas ──────────────────────────────
+// ── Trigger 4: Usuário deletado → remove conta Firebase Auth ─────────────────
+
+export const onUsuarioDeleted = onDocumentDeleted(
+  { document: 'usuarios/{uid}' },
+  async (event) => {
+    const uid = event.params.uid;
+    try {
+      await admin.auth().deleteUser(uid);
+    } catch (err: unknown) {
+      const code = (err as { errorInfo?: { code?: string } })?.errorInfo?.code;
+      if (code !== 'auth/user-not-found') throw err;
+    }
+  },
+);
+
+// ── Trigger 5: Lembretes diários de OS agendadas ──────────────────────────────
 
 const ACTIVE_STATUSES = ['nova', 'em_andamento', 'em_diagnostico', 'orcamento_aprovado'];
 const SP_OFFSET_MS = -3 * 60 * 60 * 1000; // UTC-3 (Brasília, sem horário de verão)
