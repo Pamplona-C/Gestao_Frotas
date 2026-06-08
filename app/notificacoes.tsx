@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapUnread: { backgroundColor: '#DDE8F8' },
+  iconWrapUnread: { backgroundColor: Colors.card },
   iconWrapRead: { backgroundColor: Colors.border },
   title: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
   titleUnread: { color: Colors.textPrimary, fontWeight: '700' },
