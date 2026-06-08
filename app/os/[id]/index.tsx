@@ -133,6 +133,11 @@ export default function OSDetailScreen() {
     );
   }
 
+  if (currentUser?.perfil === 'condutor' && os.condutorId !== currentUser.uid) {
+    router.replace('/(tabs)');
+    return null;
+  }
+
   const criadoEm = format(parseISO(os.criadoEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
   const dataDesejada = os.dataDesejada
     ? format(parseISO(os.dataDesejada), 'dd/MM/yyyy', { locale: ptBR })
