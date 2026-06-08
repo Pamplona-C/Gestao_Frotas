@@ -188,7 +188,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: '#E7E6E1' },
+  kav: { flex: 1, backgroundColor: Colors.background },
   safe: { flex: 1 },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center', gap: 24 },
   brand: { alignItems: 'center', gap: 8, marginBottom: 8},

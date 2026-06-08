@@ -372,7 +372,7 @@ export default function VeiculosScreen() {
               style={styles.sheetAction}
               onPress={() => { setDetalhe(null); router.push(`/veiculo/${detalhe.id}` as any); }}
             >
-              <View style={[styles.sheetActionIcon, { backgroundColor: '#F0FDF4' }]}>
+              <View style={[styles.sheetActionIcon, { backgroundColor: '#EDF2FB' }]}>
                 <Ionicons name="people-outline" size={18} color="#16A34A" />
               </View>
               <Text variant="bodyMedium" style={styles.sheetActionLabel}>Vínculos e condutores</Text>

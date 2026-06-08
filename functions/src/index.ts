@@ -155,7 +155,7 @@ export const onOSCreated = onDocumentCreated(
 // ── Trigger 2: Status atualizado → notifica condutor ──────────────────────────
 
 export const onOSStatusUpdated = onDocumentUpdated(
-  { document: 'ordens-servico/{id}', minInstances: 1 },
+  { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
     const after  = event.data?.after.data();
@@ -214,7 +214,7 @@ export const onOSStatusUpdated = onDocumentUpdated(
 // ── Trigger 3: Vínculo criado → notifica condutor ─────────────────────────────
 
 export const onVinculoCriado = onDocumentCreated(
-  { document: 'vinculos/{id}', minInstances: 1 },
+  { document: 'vinculos/{id}' },
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
@@ -254,7 +254,7 @@ export const onVinculoCriado = onDocumentCreated(
 // ── Trigger 4: Condutor entregou veículo na oficina → notifica gestor ────────
 
 export const onOSEntregueOficina = onDocumentUpdated(
-  { document: 'ordens-servico/{id}', minInstances: 1 },
+  { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
     const after  = event.data?.after.data();

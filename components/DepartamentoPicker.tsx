@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   optionSelected: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
     borderRadius: 6,
     paddingHorizontal: 8,
   },

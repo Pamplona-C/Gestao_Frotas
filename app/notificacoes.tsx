@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   cardUnread: {
     borderColor: `${Colors.primary}40`,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
   },
   iconWrap: {
     width: 40,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapUnread: { backgroundColor: '#DCFCE7' },
+  iconWrapUnread: { backgroundColor: '#DDE8F8' },
   iconWrapRead: { backgroundColor: Colors.border },
   title: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
   titleUnread: { color: Colors.textPrimary, fontWeight: '700' },
