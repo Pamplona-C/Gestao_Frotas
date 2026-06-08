@@ -1,7 +1,7 @@
 export const Colors = {
   primary:        '#0A1F3D',  // Dark Blue
   accent:         '#1E4E8C',  // Medium Blue
-  background:     '#EBEAE4',  // Off-White
+  background:     '#F8FAFC',  // Light gray-blue
   card:           '#FFFFFF',  // Pure White
   border:         '#D0CECC',  // Warm gray
   textPrimary:    '#0A1F3D',  // Dark Blue
