@@ -10,7 +10,7 @@ import {
 import { Image } from 'expo-image';
 import { Text, FAB, Surface } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth.store';
 import { useConectividade } from '../../hooks/useConectividade';
@@ -240,6 +240,14 @@ function Home() {
           ) : null
         }
       />
+
+      <TouchableOpacity
+        style={[styles.fabAbastecimento, { bottom: bottomInset + 148 }]}
+        onPress={() => router.push('/novo-abastecimento')}
+        activeOpacity={0.85}
+      >
+        <MaterialCommunityIcons name="gas-station-outline" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <FAB
         icon={online ? 'plus' : 'cloud-off-outline'}
@@ -487,6 +495,14 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingBottom: 130, flexGrow: 1 },
   empty: { alignItems: 'center', paddingVertical: 40 },
   fab: { position: 'absolute', right: 20, backgroundColor: Colors.primary },
+  fabAbastecimento: {
+    position: 'absolute', right: 20,
+    width: 52, height: 52, borderRadius: 14,
+    backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4,
+  },
   // Gestor
   gestorHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

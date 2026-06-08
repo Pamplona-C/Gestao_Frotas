@@ -251,6 +251,95 @@ export const onVinculoCriado = onDocumentCreated(
   },
 );
 
+// ── Trigger 4: Condutor entregou veículo na oficina → notifica gestor ────────
+
+export const onOSEntregueOficina = onDocumentUpdated(
+  { document: 'ordens-servico/{id}', minInstances: 1 },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after  = event.data?.after.data();
+    if (!before || !after) return;
+
+    if (before.entregueOficinaEm || !after.entregueOficinaEm) return;
+
+    const osId        = event.params.id;
+    const condutorNome  = (after.condutorNome as string) ?? 'Condutor';
+    const veiculo       = (after.veiculoModelo as string | undefined) || (after.placa as string | undefined) || `Frota ${after.frota as string}`;
+    const gestorId      = (after.gestorId    as string | undefined);
+
+    const title = 'Veículo entregue na oficina';
+    const body  = `${condutorNome} entregou o veículo ${veiculo} na oficina`;
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    if (gestorId) {
+      const gestorDoc = await db.collection('usuarios').doc(gestorId).get();
+      const token = gestorDoc.data()?.fcmToken as string | undefined;
+
+      if (token) {
+        try {
+          await messaging.send({
+            token,
+            notification: { title, body },
+            data:    { osId },
+            android: {
+              priority: 'high',
+              notification: { channelId: 'os-updates', sound: 'default' },
+            },
+            apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+          });
+        } catch (err: any) {
+          if (isStaleToken(err?.errorInfo?.code)) {
+            await removeStaleToken(gestorId);
+          }
+        }
+      }
+
+      await db.collection('notificacoes').add({
+        userId: gestorId,
+        type: 'entregue_oficina',
+        title,
+        body,
+        osId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt,
+        read: false,
+      });
+    } else {
+      const entries = await getGestorTokenEntries();
+
+      if (entries.length > 0) {
+        await sendMulticast(entries, {
+          notification: { title, body },
+          data:    { osId },
+          android: {
+            priority: 'high',
+            notification: { channelId: 'os-updates', sound: 'default' },
+          },
+          apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+        });
+      }
+
+      const batch = db.batch();
+      entries.forEach(({ uid }) => {
+        const ref = db.collection('notificacoes').doc();
+        batch.set(ref, {
+          userId: uid,
+          type: 'entregue_oficina',
+          title,
+          body,
+          osId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt,
+          read: false,
+        });
+      });
+      if (entries.length > 0) await batch.commit();
+    }
+  },
+);
+
 // ── Trigger 4: Usuário deletado → remove conta Firebase Auth ─────────────────
 
 export const onUsuarioDeleted = onDocumentDeleted(
