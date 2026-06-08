@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { AppState } from 'react-native';
+import { useFonts, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { Stack, useRouter } from 'expo-router';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -28,6 +29,8 @@ const theme = {
 };
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ Quicksand_700Bold });
+
   useAuthListener();
   usePushNotifications();
 
@@ -114,6 +117,8 @@ export default function RootLayout() {
       unsubFg.remove();
     };
   }, []);
+
+  if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
