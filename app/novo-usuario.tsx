@@ -15,6 +15,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createUserAccount, mapFirebaseError } from '../services/auth.service';
+import { DepartamentoPicker } from '../components/DepartamentoPicker';
 import { UserPerfil } from '../types';
 import { Colors } from '../constants/colors';
 
@@ -187,16 +188,13 @@ export default function NovoUsuarioScreen() {
                 <Controller
                   control={control}
                   name="departamento"
-                  render={({ field: { value, onChange, onBlur } }) => (
-                    <TextInput
+                  render={({ field: { value, onChange } }) => (
+                    <DepartamentoPicker
                       label="Departamento"
-                      mode="outlined"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      autoCapitalize="words"
+                      value={value ?? ''}
+                      onChange={onChange}
                       error={!!errors.departamento}
-                      style={styles.input}
+                      errorMessage={errors.departamento?.message}
                     />
                   )}
                 />
