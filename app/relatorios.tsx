@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     padding: 12,
   },
-  metricTileAccent: { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
+  metricTileAccent: { borderColor: '#BCCFED', backgroundColor: '#EDF2FB' },
   metricIcon: {
     width: 32,
     height: 32,
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   emptyText: { color: Colors.textHint, textAlign: 'center' },
   retryButton: {
     borderRadius: 8,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
     paddingHorizontal: 14,
     paddingVertical: 8,
     marginTop: 4,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderRadius: 7,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
     paddingHorizontal: 8,
     paddingVertical: 5,
   },

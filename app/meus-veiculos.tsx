@@ -26,7 +26,7 @@ function getChecklistStatus(v: Vinculo): ChecklistStatus {
 
 const STATUS_CONFIG: Record<ChecklistStatus, { label: string; color: string; bg: string }> = {
   pendente_entrada: { label: 'Checklist de entrada pendente', color: '#D97706', bg: '#FFFBEB' },
-  em_uso:           { label: 'Em uso',                        color: '#16A34A', bg: '#F0FDF4' },
+  em_uso:           { label: 'Em uso',                        color: '#1E4E8C', bg: '#EDF2FB' },
   saida_pendente:   { label: 'Checklist de saída pendente',   color: '#2563EB', bg: '#EFF6FF' },
 };
 

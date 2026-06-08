@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     marginBottom: 6,
   },
-  fornRowActive: { borderColor: Colors.primary, backgroundColor: '#F0FDF4' },
+  fornRowActive: { borderColor: Colors.primary, backgroundColor: '#EDF2FB' },
   fornBuscaWrapper: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -148,6 +148,26 @@ export interface Checklist {
   completadoEm: string;
 }
 
+export type TipoCombustivel = 'gasolina' | 'etanol' | 'diesel' | 'gnv' | 'eletrico';
+
+export interface Abastecimento {
+  id:               string;
+  tipo:             'abastecimento';
+  condutorId:       string;
+  condutorNome:     string;
+  veiculoId:        string;
+  veiculoPlaca:     string;
+  veiculoFrota:     string;
+  hodometro:        number;
+  tipoCombustivel:  TipoCombustivel;
+  litros?:          number;
+  valor:            number;
+  fotoUrl?:         string;
+  criadoEm:         string;
+  competencia:      string;
+  status:           'pago';
+}
+
 export interface OrdemServico {
   id: string;
   veiculoId?: string;

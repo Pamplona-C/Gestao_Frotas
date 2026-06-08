@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   servList: {
     borderRadius: 10,
     padding: 12,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
     marginBottom: 16,
     gap: 4,
   },
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderStyle: 'dashed',
     paddingVertical: 14,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EDF2FB',
   },
   addPhotoText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
   btn: { marginTop: 8, borderRadius: 10 },
