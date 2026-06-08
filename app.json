@@ -11,7 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gustavopamplona.frotaativa",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Sua localização é usada para registrar o local de atendimento da ordem de serviço.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Sua localização é usada para registrar o local de atendimento da ordem de serviço."
+      }
     },
     "android": {
       "package": "com.gustavopamplona.frotaativa",
@@ -49,7 +53,13 @@
       ],
       "@react-native-community/datetimepicker",
       "@react-native-firebase/app",
-      "@react-native-firebase/messaging"
+      "@react-native-firebase/messaging",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Sua localização é usada para registrar o local de atendimento da ordem de serviço."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

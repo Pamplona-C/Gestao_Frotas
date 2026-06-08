@@ -20,6 +20,9 @@ interface NovaOSState {
   dataDesejada: string;
   horario:      string;
   observacoes:  string;
+  // Localização
+  latitude?:  number;
+  longitude?: number;
 
   setVeiculoId:   (v: string) => void;
   setVeiculoTipo: (v: VeiculoTipo | '') => void;
@@ -35,6 +38,7 @@ interface NovaOSState {
   setDataDesejada:(v: string) => void;
   setHorario:     (v: string) => void;
   setObservacoes: (v: string) => void;
+  setLocalizacao: (lat: number, lng: number) => void;
   reset: () => void;
 }
 
@@ -71,5 +75,6 @@ export const useNovaOSStore = create<NovaOSState>((set) => ({
   setDataDesejada:(dataDesejada)=> set({ dataDesejada }),
   setHorario:     (horario)     => set({ horario }),
   setObservacoes: (observacoes) => set({ observacoes }),
+  setLocalizacao: (latitude, longitude) => set({ latitude, longitude }),
   reset: () => set(initialState),
 }));

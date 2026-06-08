@@ -8,8 +8,10 @@ import {
   Dimensions,
   Linking,
   Alert,
+  Platform,
+  Image,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,7 +55,7 @@ function FotoGaleria({ fotos, condutorNome }: { fotos: string[]; condutorNome: s
         <View style={styles.photoGrid}>
           {fotos.map((url, i) => (
             <TouchableOpacity key={i} onPress={() => setFotoAmpliada(url)} activeOpacity={0.85}>
-              <Image
+              <ExpoImage
                 source={{ uri: url }}
                 style={styles.photoThumb}
                 contentFit="cover"
@@ -71,7 +73,7 @@ function FotoGaleria({ fotos, condutorNome }: { fotos: string[]; condutorNome: s
             <Ionicons name="close-circle" size={36} color="#fff" />
           </TouchableOpacity>
           {fotoAmpliada && (
-            <Image
+            <ExpoImage
               source={{ uri: fotoAmpliada }}
               style={styles.lightboxImage}
               contentFit="contain"
@@ -264,7 +266,7 @@ export default function OSDetailScreen() {
           {/* Condutor com foto */}
           <View style={styles.condutorRow}>
             {os.condutorPhotoURL ? (
-              <Image
+              <ExpoImage
                 source={{ uri: os.condutorPhotoURL }}
                 style={styles.condutorAvatar}
                 cachePolicy="memory-disk"
@@ -292,7 +294,7 @@ export default function OSDetailScreen() {
           {os.gestorId && (
             <View style={[styles.condutorRow, { marginTop: 2 }]}>
               {os.gestorPhotoURL ? (
-                <Image
+                <ExpoImage
                   source={{ uri: os.gestorPhotoURL }}
                   style={[styles.condutorAvatar, { borderColor: Colors.accent }]}
                   cachePolicy="memory-disk"
@@ -332,6 +334,32 @@ export default function OSDetailScreen() {
             )}
           </View>
         </Surface>
+
+        {/* Mapa de localização */}
+        {os.latitude && os.longitude && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleSmall" style={styles.cardTitle}>Localização</Text>
+            <Divider style={{ marginBottom: 10 }} />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(
+                Platform.OS === 'ios'
+                  ? `maps://?ll=${os.latitude},${os.longitude}`
+                  : `geo:${os.latitude},${os.longitude}`
+              )}
+            >
+              <Image
+                source={{ uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${os.latitude},${os.longitude}&zoom=15&size=400x200&markers=${os.latitude},${os.longitude},red-pushpin` }}
+                style={styles.mapImage}
+                resizeMode="cover"
+              />
+              <View style={styles.mapHintRow}>
+                <Ionicons name="navigate-outline" size={13} color={Colors.primary} />
+                <Text variant="labelSmall" style={{ color: Colors.primary }}>Toque para abrir no mapa</Text>
+              </View>
+            </TouchableOpacity>
+          </Surface>
+        )}
 
         {/* Serviços */}
         {(os.servicos && os.servicos.length > 0) && (
@@ -652,6 +680,8 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
   mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  mapImage: { width: '100%', height: 180, borderRadius: 10 },
+  mapHintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
   servicoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
