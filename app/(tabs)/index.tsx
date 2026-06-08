@@ -35,7 +35,7 @@ function getChecklistStatus(v: Vinculo): ChecklistStatus {
 }
 const CHECKLIST_CFG: Record<ChecklistStatus, { label: string; color: string; bg: string; icon: string }> = {
   pendente_entrada: { label: 'Checklist pendente', color: '#D97706', bg: '#FFFBEB', icon: 'alert-circle-outline' },
-  em_uso:           { label: 'Em uso',             color: '#16A34A', bg: '#F0FDF4', icon: 'checkmark-circle-outline' },
+  em_uso:           { label: 'Em uso',             color: '#1E4E8C', bg: '#EDF2FB', icon: 'checkmark-circle-outline' },
   pendente_saida:   { label: 'Devolução pendente', color: '#2563EB', bg: '#EFF6FF', icon: 'time-outline' },
 };
 
