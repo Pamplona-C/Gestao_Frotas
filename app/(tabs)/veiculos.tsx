@@ -37,6 +37,7 @@ import {
 import { cacheGet, cacheSet, cacheInvalidate } from '../../lib/cache';
 import { SkeletonList } from '../../components/SkeletonCard';
 import { BottomSheet } from '../../components/BottomSheet';
+import { DepartamentoPicker } from '../../components/DepartamentoPicker';
 import { Colors } from '../../constants/colors';
 
 const CACHE_KEY = 'cache:veiculos:p1';
@@ -541,20 +542,17 @@ export default function VeiculosScreen() {
             <Controller
               control={control}
               name="departamento"
-              render={({ field: { value, onChange, onBlur } }) => (
-                <TextInput
+              render={({ field: { value, onChange } }) => (
+                <DepartamentoPicker
                   label="Departamento"
-                  mode="outlined"
                   value={value ?? ''}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  autoCapitalize="words"
+                  onChange={onChange}
                   error={!!errors.departamento}
+                  errorMessage={errors.departamento?.message}
                   dense
                 />
               )}
             />
-            {errors.departamento && <Text style={styles.err}>{errors.departamento.message}</Text>}
           </View>
 
           {/* Ativo */}
