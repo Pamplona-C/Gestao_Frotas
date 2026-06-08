@@ -89,6 +89,18 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.kav}
     >
+      {/* Blurs decorativos — falloff gaussiano simulado */}
+      <View style={[styles.glow, styles.tr1]} pointerEvents="none" />
+      <View style={[styles.glow, styles.tr2]} pointerEvents="none" />
+      <View style={[styles.glow, styles.tr3]} pointerEvents="none" />
+      <View style={[styles.glow, styles.tr4]} pointerEvents="none" />
+      <View style={[styles.glow, styles.tr5]} pointerEvents="none" />
+      <View style={[styles.glow, styles.bl1]} pointerEvents="none" />
+      <View style={[styles.glow, styles.bl2]} pointerEvents="none" />
+      <View style={[styles.glow, styles.bl3]} pointerEvents="none" />
+      <View style={[styles.glow, styles.bl4]} pointerEvents="none" />
+      <View style={[styles.glow, styles.bl5]} pointerEvents="none" />
+
       <SafeAreaView style={styles.safe}>
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -98,12 +110,12 @@ export default function LoginScreen() {
           <View style={styles.brand}>
             <View style={styles.logoWrapper}>
               <Image
-                source={require('../assets/images/icon-login.png')}
+                source={require('../assets/images/icon-login-white.png')}
                 style={styles.logoIcon}
                 contentFit="contain"
               />
             </View>
-            <Text variant="headlineMedium" style={styles.appName}>Moovia</Text>
+            <Text variant="headlineMedium" style={styles.appName}>moovıa</Text>
             <Text variant="bodyMedium" style={styles.appSub}>
               Gestão de frotas inteligentes
             </Text>
@@ -188,8 +200,26 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: Colors.background },
+  kav: { flex: 1, backgroundColor: Colors.primary },
   safe: { flex: 1 },
+
+  // Camada base — todos os glows partem daqui
+  glow: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
+  // Superior direito — núcleo → borda (opacidade decrescente, raio crescente)
+  tr1: { width:  80, height:  80, borderRadius:  40, opacity: 0.03, top: -40,  right: -40  },
+  tr2: { width: 160, height: 160, borderRadius:  80, opacity: 0.02, top: -80,  right: -80  },
+  tr3: { width: 260, height: 260, borderRadius: 130, opacity: 0.015, top: -130, right: -130 },
+  tr4: { width: 360, height: 360, borderRadius: 180, opacity: 0.01, top: -180, right: -180 },
+  tr5: { width: 480, height: 480, borderRadius: 240, opacity: 0.005, top: -240, right: -240 },
+  // Inferior esquerdo — mesmo falloff
+  bl1: { width:  80, height:  80, borderRadius:  40, opacity: 0.03, bottom: -40,  left: -40  },
+  bl2: { width: 160, height: 160, borderRadius:  80, opacity: 0.02, bottom: -80,  left: -80  },
+  bl3: { width: 260, height: 260, borderRadius: 130, opacity: 0.015, bottom: -130, left: -130 },
+  bl4: { width: 360, height: 360, borderRadius: 180, opacity: 0.01, bottom: -180, left: -180 },
+  bl5: { width: 480, height: 480, borderRadius: 240, opacity: 0.005, bottom: -240, left: -240 },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center', gap: 24 },
   brand: { alignItems: 'center', gap: 8, marginBottom: 8},
   logoWrapper: {
@@ -199,8 +229,8 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
   },
-  appName: { fontWeight: '700', color: Colors.textPrimary },
-  appSub: { color: Colors.textSecondary },
+  appName: { fontFamily: 'Quicksand_700Bold', fontSize: 38, color: '#FFFFFF', letterSpacing: -0.5 },
+  appSub: { color: 'rgba(255,255,255,0.65)' },
   card: { borderRadius: 16, padding: 20, backgroundColor: Colors.card, gap: 4 },
   formTitle: { fontWeight: '600', color: Colors.textPrimary, marginBottom: 8 },
   input: { marginTop: 6, backgroundColor: Colors.card },
