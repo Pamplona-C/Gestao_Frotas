@@ -9,7 +9,6 @@ import {
   Linking,
   Alert,
   Platform,
-  Image,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, Surface, Button, Divider } from 'react-native-paper';
@@ -335,32 +334,6 @@ export default function OSDetailScreen() {
           </View>
         </Surface>
 
-        {/* Mapa de localização */}
-        {os.latitude && os.longitude && (
-          <Surface style={styles.card} elevation={1}>
-            <Text variant="titleSmall" style={styles.cardTitle}>Localização</Text>
-            <Divider style={{ marginBottom: 10 }} />
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => Linking.openURL(
-                Platform.OS === 'ios'
-                  ? `maps://?ll=${os.latitude},${os.longitude}`
-                  : `geo:${os.latitude},${os.longitude}`
-              )}
-            >
-              <Image
-                source={{ uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${os.latitude},${os.longitude}&zoom=15&size=400x200&markers=${os.latitude},${os.longitude},red-pushpin` }}
-                style={styles.mapImage}
-                resizeMode="cover"
-              />
-              <View style={styles.mapHintRow}>
-                <Ionicons name="navigate-outline" size={13} color={Colors.primary} />
-                <Text variant="labelSmall" style={{ color: Colors.primary }}>Toque para abrir no mapa</Text>
-              </View>
-            </TouchableOpacity>
-          </Surface>
-        )}
-
         {/* Serviços */}
         {(os.servicos && os.servicos.length > 0) && (
           <Surface style={styles.card} elevation={1}>
@@ -680,8 +653,6 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
   mapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  mapImage: { width: '100%', height: 180, borderRadius: 10 },
-  mapHintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
   servicoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

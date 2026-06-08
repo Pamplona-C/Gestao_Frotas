@@ -47,7 +47,6 @@ export default function NovoAbastecimentoScreen() {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [vinculo, setVinculo] = useState<Vinculo | null>(null);
   const [loadingVinculo, setLoadingVinculo] = useState(true);
-  const [veiculoSheet, setVeiculoSheet] = useState(false);
   const [fotoUri, setFotoUri] = useState<string | null>(null);
   const [combustivelSheet, setCombustivelSheet] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -124,7 +123,8 @@ export default function NovoAbastecimentoScreen() {
       setSnackMsg('Abastecimento registrado!');
       setSnackVisible(true);
       setTimeout(() => router.back(), 1500);
-    } catch {
+    } catch (err) {
+      console.error('[NovoAbastecimento] criarAbastecimento falhou:', err);
       setSnackMsg('Erro ao registrar. Tente novamente.');
       setSnackVisible(true);
     } finally {

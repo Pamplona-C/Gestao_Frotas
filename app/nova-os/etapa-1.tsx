@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Text, TextInput, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,11 +41,6 @@ export default function Etapa1() {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [selecionado, setSelecionado] = useState<Vinculo | null>(null);
-  const [buscandoGPS, setBuscandoGPS] = useState(false);
-  const [gpsDisponivel] = useState(() => {
-    try { require('expo-location'); return true; } catch { return false; }
-  });
-
   useFocusEffect(
     useCallback(() => {
       if (!currentUser?.uid) return;
@@ -75,40 +69,6 @@ export default function Etapa1() {
   });
 
   const isMoto = selecionado?.veiculoTipo === 'moto';
-
-  const usarLocalizacao = async (onChange: (v: string) => void) => {
-    let Location: any;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      Location = require('expo-location');
-    } catch {
-      Alert.alert('Não disponível', 'GPS não está disponível nesta versão do app.');
-      return;
-    }
-
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permissão necessária',
-        'Ative o acesso à localização nas configurações do dispositivo para usar esta função.',
-      );
-      return;
-    }
-    setBuscandoGPS(true);
-    try {
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      store.setLocalizacao(pos.coords.latitude, pos.coords.longitude);
-      const [geo] = await Location.reverseGeocodeAsync(pos.coords);
-      if (geo?.city) {
-        onChange(geo.city);
-        store.setCidade(geo.city);
-      }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível obter a localização. Tente novamente.');
-    } finally {
-      setBuscandoGPS(false);
-    }
-  };
 
   const onNext = (data: FormData) => {
     if (!selecionado) return;
@@ -220,30 +180,13 @@ export default function Etapa1() {
               control={control}
               name="cidade"
               render={({ field: { value, onChange } }) => (
-                <>
-                  <CidadeAutocomplete
-                    label="Cidade do atendimento"
-                    value={value}
-                    onChange={(c) => { onChange(c); store.setCidade(c); }}
-                    error={!!errors.cidade}
-                    errorMessage={errors.cidade?.message}
-                  />
-                  {gpsDisponivel && <TouchableOpacity
-                    style={styles.gpsBtn}
-                    onPress={() => usarLocalizacao(onChange)}
-                    disabled={buscandoGPS}
-                    activeOpacity={0.7}
-                  >
-                    {buscandoGPS ? (
-                      <ActivityIndicator size={14} color={Colors.primary} />
-                    ) : (
-                      <Ionicons name="navigate-outline" size={14} color={Colors.primary} />
-                    )}
-                    <Text style={styles.gpsBtnText}>
-                      {buscandoGPS ? 'Obtendo localização…' : 'Usar minha localização'}
-                    </Text>
-                  </TouchableOpacity>}
-                </>
+                <CidadeAutocomplete
+                  label="Cidade do atendimento"
+                  value={value}
+                  onChange={(c) => { onChange(c); store.setCidade(c); }}
+                  error={!!errors.cidade}
+                  errorMessage={errors.cidade?.message}
+                />
               )}
             />
           </View>
@@ -315,18 +258,4 @@ const styles = StyleSheet.create({
   veiculoNome: { fontWeight: '600', color: Colors.textPrimary },
   btn:        { marginTop: 16, borderRadius: 10 },
   btnContent: { paddingVertical: 4 },
-  gpsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  gpsBtnText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
 });

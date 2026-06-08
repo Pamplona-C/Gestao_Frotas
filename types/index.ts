@@ -207,6 +207,4 @@ export interface OrdemServico {
   valorTotal?:          number;
   gastoPreventiva?:     number;
   gastoCorretiva?:      number;
-  latitude?:            number;
-  longitude?:           number;
 }
