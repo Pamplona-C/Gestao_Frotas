@@ -14,7 +14,7 @@ export function MetricCard({ label, value, accent }: Props) {
     <Surface style={styles.card} elevation={1}>
       <Text
         variant="displaySmall"
-        style={[styles.value, accent && { color: Colors.primary }]}
+        style={[styles.value, accent && { color: Colors.accent }]}
       >
         {value}
       </Text>
