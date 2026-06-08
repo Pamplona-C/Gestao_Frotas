@@ -170,11 +170,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   cardUnread: {
-    borderColor: `${Colors.primary}40`,
     backgroundColor: '#EDF2FB',
   },
   iconWrap: {
