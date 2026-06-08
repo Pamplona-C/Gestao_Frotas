@@ -44,8 +44,10 @@ type FormData = z.infer<typeof schema>;
 export default function NovoAbastecimentoScreen() {
   const router = useRouter();
   const { currentUser } = useAuthStore();
+  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [vinculo, setVinculo] = useState<Vinculo | null>(null);
   const [loadingVinculo, setLoadingVinculo] = useState(true);
+  const [veiculoSheet, setVeiculoSheet] = useState(false);
   const [fotoUri, setFotoUri] = useState<string | null>(null);
   const [combustivelSheet, setCombustivelSheet] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -65,9 +67,11 @@ export default function NovoAbastecimentoScreen() {
 
   useEffect(() => {
     if (!currentUser?.uid) return;
-    const unsub = subscribeToVinculosByCondutorId(currentUser.uid, (vinculos) => {
-      const ativo = vinculos.find((v) => v.status === 'ativo' && v.checklistEntradaId);
-      setVinculo(ativo ?? null);
+    const unsub = subscribeToVinculosByCondutorId(currentUser.uid, (ativos) => {
+      const ativos2 = ativos.filter((v) => v.status === 'ativo' && v.checklistEntradaId);
+      setVinculos(ativos2);
+      if (ativos2.length === 1) setVinculo(ativos2[0]);
+      else setVinculo(null);
       setLoadingVinculo(false);
     });
     return unsub;
@@ -129,9 +133,12 @@ export default function NovoAbastecimentoScreen() {
     }
   }
 
-  const veiculoLabel = vinculo
-    ? `${vinculo.veiculoMarca} ${vinculo.veiculoModelo}${vinculo.veiculoPlaca ? ` · ${vinculo.veiculoPlaca}` : ` · Frota ${vinculo.veiculoFrota}`}`
-    : null;
+  function veiculoLabel(v: Vinculo) {
+    return `${v.veiculoMarca} ${v.veiculoModelo}${v.veiculoPlaca ? ` · ${v.veiculoPlaca}` : ` · Frota ${v.veiculoFrota}`}`;
+  }
+
+  const semVinculo = !loadingVinculo && vinculos.length === 0;
+  const precisaEscolher = !loadingVinculo && vinculos.length > 1 && !vinculo;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -149,20 +156,46 @@ export default function NovoAbastecimentoScreen() {
           <View style={styles.centered}>
             <Text style={{ color: Colors.textSecondary }}>Carregando veículo...</Text>
           </View>
-        ) : !vinculo ? (
+        ) : semVinculo ? (
           <View style={styles.centered}>
             <Ionicons name="car-outline" size={48} color={Colors.textHint} />
             <Text variant="bodyMedium" style={styles.semVeiculo}>
               Nenhum veículo vinculado ativo.{'\n'}Solicite um vínculo ao gestor.
             </Text>
           </View>
+        ) : precisaEscolher ? (
+          <View style={styles.centered}>
+            <Ionicons name="car-outline" size={48} color={Colors.primary} />
+            <Text variant="bodyMedium" style={styles.semVeiculo}>
+              Você tem {vinculos.length} veículos vinculados.{'\n'}Selecione qual está abastecendo:
+            </Text>
+            <View style={{ width: '100%', gap: 10, marginTop: 8 }}>
+              {vinculos.map((v) => (
+                <TouchableOpacity
+                  key={v.id}
+                  style={styles.veiculoOpcao}
+                  onPress={() => setVinculo(v)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="car-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.veiculoOpcaoText}>{veiculoLabel(v)}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         ) : (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Veículo */}
-            <Surface style={styles.veiculoBadge} elevation={0}>
+            <TouchableOpacity
+              style={styles.veiculoBadge}
+              onPress={() => vinculos.length > 1 && setVinculo(null)}
+              activeOpacity={vinculos.length > 1 ? 0.7 : 1}
+            >
               <Ionicons name="car-outline" size={18} color={Colors.primary} />
-              <Text variant="bodyMedium" style={styles.veiculoText}>{veiculoLabel}</Text>
-            </Surface>
+              <Text variant="bodyMedium" style={styles.veiculoText}>{veiculoLabel(vinculo!)}</Text>
+              {vinculos.length > 1 && <Ionicons name="swap-horizontal-outline" size={16} color={Colors.accent} />}
+            </TouchableOpacity>
 
             <Surface style={styles.card} elevation={1}>
               <Text variant="titleSmall" style={styles.cardTitle}>Dados do abastecimento</Text>
@@ -338,9 +371,16 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, gap: 16, paddingBottom: 40 },
   veiculoBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#EDF2FB', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#BCCFED',
+    backgroundColor: Colors.primaryLight, borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: Colors.primaryBorder,
   },
+  veiculoOpcao: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: Colors.border,
+    marginHorizontal: 20,
+  },
+  veiculoOpcaoText: { flex: 1, fontSize: 15, color: Colors.textPrimary, fontWeight: '500' },
   veiculoText: { color: Colors.textPrimary, fontWeight: '500', flex: 1 },
   card: { borderRadius: 14, padding: 16, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary },
