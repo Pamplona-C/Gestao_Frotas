@@ -69,8 +69,6 @@ export default function Etapa6() {
           servicos:              store.servicosSelecionados,
           descricao:             store.descricao || undefined,
           cidade:                store.cidade,
-          latitude:              store.latitude,
-          longitude:             store.longitude,
           dataDesejada:          store.dataDesejada || undefined,
           horario:               store.horario || undefined,
           observacoes:           store.observacoes || undefined,
