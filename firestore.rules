@@ -23,9 +23,10 @@ service cloud.firestore {
       allow delete: if isGestor();
     }
 
-    // OS: condutor cria as próprias e atualiza só fotos; gestor atualiza tudo
+    // OS: condutor lê/cria as próprias; gestor lê e atualiza todas
     match /ordens-servico/{id} {
-      allow read:   if isAuthenticated();
+      allow read:   if isGestor() ||
+        (isAuthenticated() && resource.data.condutorId == request.auth.uid);
       allow create: if isAuthenticated() &&
         (request.resource.data.condutorId == request.auth.uid || isGestor());
       allow update: if isGestor() ||
@@ -92,6 +93,12 @@ service cloud.firestore {
       allow create: if isAuthenticated()
         && request.resource.data.tipo == 'abastecimento'
         && request.resource.data.condutorId == request.auth.uid;
+    }
+
+    // Métricas agregadas: leitura apenas para gestores; escrita somente via Admin SDK (Cloud Functions)
+    match /metricas-frota/{id} {
+      allow read:  if isGestor();
+      allow write: if false;
     }
 
     // Notificações: cada usuário lê e marca como lida apenas as próprias

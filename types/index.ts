@@ -148,6 +148,28 @@ export interface Checklist {
   completadoEm: string;
 }
 
+export interface MetricasFrota {
+  osAguardando: number;
+  veiculosEmOficina: number;
+  gastoMes: {
+    total: number;
+    preventiva: number;
+    corretiva: number;
+    mes: string; // 'YYYY-MM'
+  };
+  prevVsCorr: {
+    preventiva: number; // contagem no mês
+    corretiva: number;
+    mes: string;
+  };
+  atualizadoEm?:          unknown;
+  osEmAndamento?:         number;
+  osEmDiagnostico?:       number;
+  osAguardandoAprovacao?: number;
+  osConcluidasHoje?:      number;
+  totalOSAtivas?:         number;
+}
+
 export type TipoCombustivel = 'gasolina' | 'etanol' | 'diesel' | 'gnv' | 'eletrico';
 
 export interface Abastecimento {
@@ -207,4 +229,6 @@ export interface OrdemServico {
   valorTotal?:          number;
   gastoPreventiva?:     number;
   gastoCorretiva?:      number;
+  lembreteEnviado?:     boolean;
+  lembreteEnviadoEm?:   string | null;
 }
