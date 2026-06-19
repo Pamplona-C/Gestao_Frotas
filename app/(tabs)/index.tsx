@@ -16,15 +16,17 @@ import { useAuthStore } from '../../store/auth.store';
 import { useConectividade } from '../../hooks/useConectividade';
 import { OSCard } from '../../components/OSCard';
 import { MetricCard } from '../../components/MetricCard';
+import { GestorMetricCard } from '../../components/GestorMetricCard';
 import { StatusBadge } from '../../components/StatusBadge';
 import { NotificationBell } from '../../components/NotificationBell';
 import {
   subscribeToOSByCondutorId,
   subscribeToAllOS,
 } from '../../services/os.service';
+import { subscribeToMetricas, seedMetricasSeNecessario } from '../../services/metricas.service';
 import { subscribeToAllFornecedores } from '../../services/fornecedor.service';
 import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
-import { OrdemServico, OSStatus, Fornecedor, Vinculo } from '../../types';
+import { OrdemServico, OSStatus, Fornecedor, Vinculo, MetricasFrota } from '../../types';
 import { Colors } from '../../constants/colors';
 
 type ChecklistStatus = 'pendente_entrada' | 'em_uso' | 'pendente_saida';
@@ -258,28 +260,49 @@ function GestorDashboard() {
   const router = useRouter();
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [fornecedoresMap, setFornecedoresMap] = useState<Map<string, Fornecedor>>(new Map());
-  const [metrics, setMetrics] = useState({ total: 0, emAndamento: 0, orcamentoAprovado: 0, gastoPreventiva: 0, gastoCorretiva: 0 });
+  const [metricas, setMetricas] = useState<MetricasFrota>({
+    osAguardando: 0,
+    veiculosEmOficina: 0,
+    gastoMes: { total: 0, preventiva: 0, corretiva: 0, mes: '' },
+    prevVsCorr: { preventiva: 0, corretiva: 0, mes: '' },
+  });
   const [filtro, setFiltro] = useState<OSStatus | 'todas'>('todas');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsubOS = subscribeToAllOS((data, m) => {
+    const unsubOS = subscribeToAllOS((data, _m) => {
       setOrdens(data);
-      setMetrics(m);
       setLoading(false);
       setRefreshing(false);
     });
     const unsubForn = subscribeToAllFornecedores((list) => {
       setFornecedoresMap(new Map(list.map((f) => [f.id, f])));
     });
-    return () => { unsubOS(); unsubForn(); };
+    const unsubMetricas = subscribeToMetricas(setMetricas);
+    seedMetricasSeNecessario().catch(() => null);
+    return () => { unsubOS(); unsubForn(); unsubMetricas(); };
   }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
+
+  const gastoFormatado = useMemo(() => {
+    const v = metricas.gastoMes.total;
+    if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000)     return `R$ ${(v / 1_000).toFixed(1)}k`;
+    return `R$ ${v.toFixed(0)}`;
+  }, [metricas.gastoMes.total]);
+
+  const prevCorrFormatado = useMemo(() => {
+    const { preventiva, corretiva } = metricas.prevVsCorr;
+    const total = preventiva + corretiva;
+    if (total === 0) return { value: '0', secondary: '/ 0%' };
+    const pct = Math.round((preventiva / total) * 100);
+    return { value: String(pct), secondary: `/ ${100 - pct}%` };
+  }, [metricas.prevVsCorr]);
 
   const filtered = useMemo(() => {
     const base = filtro === 'todas' ? ordens : ordens.filter((o) => o.status === filtro);
@@ -329,11 +352,41 @@ function GestorDashboard() {
       >
         <View style={styles.metricsGrid}>
           <View style={styles.metricsRow}>
-            <MetricCard label="Total de OS"    value={metrics.total} />
-            <MetricCard label="Em andamento"   value={metrics.emAndamento} accent />
+            <GestorMetricCard
+              iconName="warning-outline"
+              iconColor="#DC2626"
+              iconBg="#FEF2F2"
+              value={metricas.osAguardando}
+              label="OS aguardando"
+              urgent
+            />
+            <GestorMetricCard
+              iconName="cash-outline"
+              iconColor="#16A34A"
+              iconBg="#F0FDF4"
+              value={gastoFormatado}
+              label="Gasto do Mês"
+              subtitle="Prev. + Corretiva"
+            />
           </View>
           <View style={styles.metricsRow}>
-            <MetricCard label="Ag. aprovação"  value={metrics.orcamentoAprovado} />
+            <GestorMetricCard
+              iconName="build-outline"
+              iconColor="#2563EB"
+              iconBg="#EFF6FF"
+              value={metricas.veiculosEmOficina}
+              label="Em manutenção"
+              subtitle="Veículos indisponíveis"
+            />
+            <GestorMetricCard
+              iconName="pie-chart-outline"
+              iconColor="#7C3AED"
+              iconBg="#F5F3FF"
+              value={prevCorrFormatado.value}
+              valueSecondary={prevCorrFormatado.secondary}
+              label="Prev. vs Corr."
+              subtitle="Saúde da frota"
+            />
           </View>
         </View>
 

@@ -9,6 +9,7 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   where,
   type DocumentData,
@@ -29,9 +30,11 @@ const ACTIVE_STATUSES: OSStatus[] = [
 
 function docToOS(id: string, data: DocumentData): OrdemServico {
   return {
-    ...(data as Omit<OrdemServico, 'id' | 'criadoEm'>),
+    ...(data as Omit<OrdemServico, 'id' | 'criadoEm' | 'dataDesejada' | 'lembreteEnviadoEm'>),
     id,
-    criadoEm: data.criadoEm?.toDate?.()?.toISOString() ?? data.criadoEm ?? new Date().toISOString(),
+    criadoEm:         data.criadoEm?.toDate?.()?.toISOString()         ?? data.criadoEm         ?? new Date().toISOString(),
+    dataDesejada:     data.dataDesejada?.toDate?.()?.toISOString()      ?? data.dataDesejada,
+    lembreteEnviadoEm: data.lembreteEnviadoEm?.toDate?.()?.toISOString() ?? data.lembreteEnviadoEm ?? null,
   };
 }
 
@@ -144,9 +147,15 @@ export async function createOS(
   const payload = Object.fromEntries(
     Object.entries({
       ...os,
-      status: 'nova',
-      criadoEm: serverTimestamp(),
-      statusHistory: [firstEntry],
+      status:            'nova',
+      criadoEm:          serverTimestamp(),
+      statusHistory:     [firstEntry],
+      lembreteEnviado:   false,
+      lembreteEnviadoEm: null,
+      // converte dataDesejada string → Timestamp para queries no Firestore
+      ...(os.dataDesejada
+        ? { dataDesejada: Timestamp.fromDate(new Date(os.dataDesejada)) }
+        : {}),
     }).filter(([, v]) => v !== undefined)
   );
   const ref = await addDoc(collection(db, 'ordens-servico'), payload);

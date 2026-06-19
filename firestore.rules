@@ -95,6 +95,12 @@ service cloud.firestore {
         && request.resource.data.condutorId == request.auth.uid;
     }
 
+    // Métricas agregadas: leitura apenas para gestores; escrita somente via Admin SDK (Cloud Functions)
+    match /metricas-frota/{id} {
+      allow read:  if isGestor();
+      allow write: if false;
+    }
+
     // Notificações: cada usuário lê e marca como lida apenas as próprias
     match /notificacoes/{id} {
       allow read:   if isAuthenticated() && request.auth.uid == resource.data.userId;
