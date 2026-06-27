@@ -143,7 +143,9 @@ export default function OSDetailScreen() {
     ? format(parseISO(os.dataDesejada), 'dd/MM/yyyy', { locale: ptBR })
     : null;
 
-  const condutorInitials = os.condutorNome
+  const condutorNome = os.condutorNome ?? '';
+  const temCondutor = !!os.condutorId;
+  const condutorInitials = condutorNome
     .split(' ')
     .slice(0, 2)
     .map((n) => n[0])
@@ -267,31 +269,50 @@ export default function OSDetailScreen() {
             </View>
           </View>
 
-          {/* Condutor com foto */}
+          {/* Condutor com foto — ou rótulo de OS administrativa */}
           <View style={styles.condutorRow}>
-            {os.condutorPhotoURL ? (
-              <ExpoImage
-                source={{ uri: os.condutorPhotoURL }}
-                style={styles.condutorAvatar}
-                cachePolicy="memory-disk"
-                transition={200}
-              />
+            {temCondutor ? (
+              <>
+                {os.condutorPhotoURL ? (
+                  <ExpoImage
+                    source={{ uri: os.condutorPhotoURL }}
+                    style={styles.condutorAvatar}
+                    cachePolicy="memory-disk"
+                    transition={200}
+                  />
+                ) : (
+                  <View style={styles.condutorAvatarFallback}>
+                    <Text style={styles.condutorInitials}>{condutorInitials}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
+                  <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                    {condutorNome}
+                  </Text>
+                  {os.condutorDepartamento ? (
+                    <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                      {os.condutorDepartamento}
+                    </Text>
+                  ) : null}
+                </View>
+              </>
             ) : (
-              <View style={styles.condutorAvatarFallback}>
-                <Text style={styles.condutorInitials}>{condutorInitials}</Text>
-              </View>
+              <>
+                <View style={[styles.condutorAvatarFallback, { backgroundColor: Colors.textHint }]}>
+                  <Ionicons name="construct-outline" size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
+                  <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                    OS administrativa
+                  </Text>
+                  <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                    Veículo sem motorista vinculado
+                  </Text>
+                </View>
+              </>
             )}
-            <View style={{ flex: 1 }}>
-              <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
-              <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
-                {os.condutorNome}
-              </Text>
-              {os.condutorDepartamento ? (
-                <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                  {os.condutorDepartamento}
-                </Text>
-              ) : null}
-            </View>
           </View>
 
           {/* Gestor responsável */}
@@ -366,7 +387,7 @@ export default function OSDetailScreen() {
 
         {/* Fotos da OS */}
         {os.fotos && os.fotos.length > 0 && (
-          <FotoGaleria fotos={os.fotos} condutorNome={os.condutorNome} />
+          <FotoGaleria fotos={os.fotos} condutorNome={condutorNome} />
         )}
 
         {/* Fornecedor */}

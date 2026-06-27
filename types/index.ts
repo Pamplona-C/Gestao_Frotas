@@ -200,8 +200,9 @@ export interface OrdemServico {
   veiculoTipo?: VeiculoTipo;
   placa?: string;
   frota: string;
-  condutorId: string;
-  condutorNome: string;
+  /** Ausente em OS administrativa (veículo sem vínculo ativo). */
+  condutorId?: string;
+  condutorNome?: string;
   hodometro?: number;
   servicos?: string[];
   descricao?: string;

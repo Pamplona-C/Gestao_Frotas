@@ -51,7 +51,9 @@ export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, show
         {/* Condutor */}
         <View style={styles.infoRow}>
           <Ionicons name="person-outline" size={13} color={Colors.textSecondary} />
-          <Text style={styles.infoText} numberOfLines={1}>{os.condutorNome}</Text>
+          <Text style={styles.infoText} numberOfLines={1}>
+            {os.condutorId ? os.condutorNome : 'OS administrativa · sem condutor'}
+          </Text>
         </View>
 
         {/* Fornecedor */}
@@ -82,6 +84,7 @@ export const OSCard = React.memo(function OSCard({ os, onPress, fornecedor, show
 }, (prev, next) =>
   prev.os.id === next.os.id &&
   prev.os.status === next.os.status &&
+  prev.os.condutorId === next.os.condutorId &&
   prev.os.valorTotal === next.os.valorTotal &&
   prev.os.fornecedorId === next.os.fornecedorId &&
   prev.os.veiculoMarca === next.os.veiculoMarca &&

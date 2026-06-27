@@ -360,10 +360,13 @@ export const onOSStatusUpdated = onDocumentUpdated(
 
     const osId       = event.params.id;
     const newStatus  = after.status as OSStatus;
-    const condutorId = after.condutorId as string;
+    const condutorId = after.condutorId as string | undefined;
 
     const msg = STATUS_MESSAGES[newStatus];
     if (!msg) return;
+
+    // OS administrativa (aberta pelo gestor sem condutor) não tem ninguém a notificar.
+    if (!condutorId) return;
 
     const condutorDoc = await db.collection('usuarios').doc(condutorId).get();
     const token = condutorDoc.data()?.fcmToken as string | undefined;
