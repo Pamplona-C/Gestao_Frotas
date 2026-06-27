@@ -741,16 +741,25 @@ export const onOSGastoOuOficinaUpdated = onDocumentUpdated(
       }
     }
 
-    // GASTO → gastoMes + prevVsCorr
+    // GASTO (R$) → gastoMes
     const deltaPreventiva = Number(after.gastoPreventiva ?? 0) - Number(before.gastoPreventiva ?? 0);
     const deltaCorretiva  = Number(after.gastoCorretiva  ?? 0) - Number(before.gastoCorretiva  ?? 0);
     const deltaTotal      = deltaPreventiva + deltaCorretiva;
 
-    if (deltaTotal !== 0)      inc['gastoMes.total']        = admin.firestore.FieldValue.increment(deltaTotal);
-    if (deltaPreventiva !== 0) inc['gastoMes.preventiva']   = admin.firestore.FieldValue.increment(deltaPreventiva);
-    if (deltaCorretiva !== 0)  inc['gastoMes.corretiva']    = admin.firestore.FieldValue.increment(deltaCorretiva);
-    if (deltaPreventiva !== 0) inc['prevVsCorr.preventiva'] = admin.firestore.FieldValue.increment(deltaPreventiva);
-    if (deltaCorretiva !== 0)  inc['prevVsCorr.corretiva']  = admin.firestore.FieldValue.increment(deltaCorretiva);
+    if (deltaTotal !== 0)      inc['gastoMes.total']      = admin.firestore.FieldValue.increment(deltaTotal);
+    if (deltaPreventiva !== 0) inc['gastoMes.preventiva'] = admin.firestore.FieldValue.increment(deltaPreventiva);
+    if (deltaCorretiva !== 0)  inc['gastoMes.corretiva']  = admin.firestore.FieldValue.increment(deltaCorretiva);
+
+    // PROPORÇÃO preventiva vs corretiva → prevVsCorr por QUANTIDADE de serviços.
+    // Usa a mesma base do recálculo diário (calcularCountsPrevCorr). Antes este
+    // trigger somava R$ aqui, misturando unidades (reais sobre uma contagem).
+    const countsBefore = calcularCountsPrevCorr(before);
+    const countsAfter  = calcularCountsPrevCorr(after);
+    const deltaCountPreventiva = countsAfter.preventiva - countsBefore.preventiva;
+    const deltaCountCorretiva  = countsAfter.corretiva  - countsBefore.corretiva;
+
+    if (deltaCountPreventiva !== 0) inc['prevVsCorr.preventiva'] = admin.firestore.FieldValue.increment(deltaCountPreventiva);
+    if (deltaCountCorretiva  !== 0) inc['prevVsCorr.corretiva']  = admin.firestore.FieldValue.increment(deltaCountCorretiva);
 
     // OFICINA → veiculosEmOficina
     if (!before.entregueOficinaEm && after.entregueOficinaEm) {
