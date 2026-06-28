@@ -222,7 +222,14 @@ export default function GerenciarOSScreen() {
 
   const onSave = async () => {
     if (!os || !currentUser) return;
-    const novoStatus = selectedStatus ?? os.status;
+    const primeiroAssignment = !os.gestorId;
+    // Ao assumir a OS (primeiro gestor) com status ainda "nova", promove
+    // automaticamente para "em_andamento". Status mais avançado escolhido
+    // explicitamente pelo gestor é respeitado.
+    let novoStatus = selectedStatus ?? os.status;
+    if (primeiroAssignment && novoStatus === 'nova') {
+      novoStatus = 'em_andamento';
+    }
     const temServicos = servicosRealizados.length > 0;
 
     const updates = Object.fromEntries(Object.entries({
@@ -247,7 +254,6 @@ export default function GerenciarOSScreen() {
     }).filter(([, v]) => v !== undefined));
 
     const osRef = doc(db, 'ordens-servico', os.id);
-    const primeiroAssignment = !os.gestorId;
 
     if (primeiroAssignment) {
       try {
