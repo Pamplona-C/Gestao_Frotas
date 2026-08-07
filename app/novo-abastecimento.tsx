@@ -33,7 +33,9 @@ const COMBUSTIVEIS: { key: TipoCombustivel; label: string }[] = [
 ];
 
 const schema = z.object({
-  hodometro: z.string().min(1, 'Hodômetro obrigatório').refine((v) => !isNaN(Number(v)) && Number(v) > 0, 'Valor inválido'),
+  // Obrigatório só para não-moto: parte das motos da frota não tem odômetro.
+  // A exigência de fato é aplicada no superRefine abaixo, que conhece o tipo.
+  hodometro: z.string().optional().refine((v) => !v || (!isNaN(Number(v)) && Number(v) > 0), 'Valor inválido'),
   tipoCombustivel: z.enum(['gasolina', 'etanol', 'diesel', 'gnv', 'eletrico'] as const, { message: 'Selecione o combustível' }),
   valor: z.string().min(1, 'Valor obrigatório').refine((v) => !isNaN(Number(v.replace(',', '.'))) && Number(v.replace(',', '.')) > 0, 'Valor inválido'),
   litros: z.string().optional(),
@@ -59,6 +61,7 @@ export default function NovoAbastecimentoScreen() {
     handleSubmit,
     setValue,
     watch,
+    setError,
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
@@ -100,8 +103,16 @@ export default function NovoAbastecimentoScreen() {
     ]);
   }
 
+  // Motos da frota nem sempre têm odômetro; para os demais veículos o km é
+  // obrigatório. O zod não enxerga o veículo escolhido, então a regra fica aqui.
+  const isMoto = vinculo?.veiculoTipo === 'moto';
+
   async function onSubmit(data: FormData) {
     if (!currentUser || !vinculo) return;
+    if (!isMoto && !data.hodometro) {
+      setError('hodometro', { message: 'Hodômetro obrigatório' });
+      return;
+    }
     setSalvando(true);
     setProgresso(null);
     try {
@@ -112,7 +123,7 @@ export default function NovoAbastecimentoScreen() {
           veiculoId:       vinculo.veiculoId,
           veiculoPlaca:    vinculo.veiculoPlaca ?? '',
           veiculoFrota:    vinculo.veiculoFrota,
-          hodometro:       Number(data.hodometro),
+          hodometro:       data.hodometro ? Number(data.hodometro) : undefined,
           tipoCombustivel: data.tipoCombustivel,
           litros:          data.litros ? Number(data.litros.replace(',', '.')) : undefined,
           valor:           Number(data.valor.replace(',', '.')),

@@ -21,7 +21,8 @@ export interface NovoAbastecimentoInput {
   veiculoId:       string;
   veiculoPlaca:    string;
   veiculoFrota:    string;
-  hodometro:       number;
+  // Opcional: parte das motos da frota não tem odômetro.
+  hodometro?:      number;
   tipoCombustivel: TipoCombustivel;
   litros?:         number;
   valor:           number;

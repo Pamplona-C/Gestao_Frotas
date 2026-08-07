@@ -25,6 +25,18 @@ import {
 } from 'firebase/firestore';
 import { app, auth, db } from '../lib/firebase';
 import { AppUser, UserPerfil, UserProfile } from '../types';
+import { USAR_BACKEND } from '../lib/flags';
+import * as backend from './auth.backend';
+
+/**
+ * Enquanto a migração acontece, a autenticação pode vir do Firebase (padrão) ou
+ * do moovia-backend. A flag liga o caminho novo sem tocar em quem usa o app.
+ *
+ * ATENÇÃO: com a flag ligada o app NÃO autentica no Firebase Auth, então as
+ * Firestore Rules recusam tudo — o resto do app (OS, vínculos, veículos) para
+ * de funcionar. É esperado: nesta fatia só validamos login, perfil e senha.
+ */
+export const AUTH_BACKEND = USAR_BACKEND;
 
 function normalizeSearchText(value: string): string {
   return value
@@ -63,6 +75,11 @@ export function mapFirebaseError(err: unknown): AuthServiceError {
     default:
       return { code: fe?.code ?? 'unknown', message: 'Erro inesperado. Tente novamente.' };
   }
+}
+
+/** Traduz o erro para mensagem de tela, seja ele do Firebase ou do backend. */
+export function mapAuthError(err: unknown): AuthServiceError {
+  return AUTH_BACKEND ? backend.mapBackendError(err) : mapFirebaseError(err);
 }
 
 // ── Perfil no Firestore ────────────────────────────────────────────────────────
@@ -125,6 +142,8 @@ export async function signInWithEmail(
   email:    string,
   password: string
 ): Promise<AppUser> {
+  if (AUTH_BACKEND) return backend.signInWithEmail(email, password);
+
   const { user } = await signInWithEmailAndPassword(auth, email, password);
   return buildAppUser(user.uid, {
     displayName: user.displayName,
@@ -149,6 +168,7 @@ export async function signInWithGoogleIdToken(idToken: string): Promise<AppUser>
 // ── Sign-out ───────────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {
+  if (AUTH_BACKEND) return backend.signOut();
   await fbSignOut(auth);
 }
 
@@ -159,6 +179,8 @@ export async function changePassword(
   currentPassword: string,
   newPassword:     string
 ): Promise<void> {
+  if (AUTH_BACKEND) return backend.changePassword(currentPassword, newPassword);
+
   const user = auth.currentUser;
   if (!user?.email) throw { code: 'auth/no-user', message: 'Usuário não autenticado.' };
 
@@ -180,6 +202,11 @@ export async function createUserAccount(data: {
   perfil:       UserPerfil;
   departamento: string;
 }): Promise<void> {
+  if (AUTH_BACKEND) {
+    const { createUserAccount: criarNoBackend } = await import('./usuarios.backend');
+    return criarNoBackend(data);
+  }
+
   // Instância temporária para não afetar a sessão do gestor
   const secondaryApp  = initializeApp(app.options, `create-user-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
@@ -226,3 +253,9 @@ export async function updatePhotoURL(
   await updateProfile(user, { photoURL: photoURL ?? '' });
   await updateDoc(doc(db, 'usuarios', user.uid), { photoURL });
 }
+
+// ── Recuperação de senha (só existe no backend) ────────────────────────────────
+
+export const esqueciSenha   = backend.esqueciSenha;
+export const redefinirSenha = backend.redefinirSenha;
+export const restaurarSessao = backend.restaurarSessao;

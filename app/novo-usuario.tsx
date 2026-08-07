@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createUserAccount, mapFirebaseError } from '../services/auth.service';
+import { createUserAccount, mapAuthError } from '../services/auth.service';
 import { DepartamentoPicker } from '../components/DepartamentoPicker';
 import { UserPerfil } from '../types';
 import { Colors } from '../constants/colors';
@@ -100,7 +100,7 @@ export default function NovoUsuarioScreen() {
       setPendingData(null);
       setTimeout(() => router.back(), 1800);
     } catch (err) {
-      setSnackMsg(mapFirebaseError(err).message);
+      setSnackMsg(mapAuthError(err).message);
       setSnackVisible(true);
     } finally {
       setCriando(false);
