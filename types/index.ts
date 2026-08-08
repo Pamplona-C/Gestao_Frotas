@@ -193,6 +193,12 @@ export interface Abastecimento {
 
 export interface OrdemServico {
   id: string;
+  /**
+   * Número sequencial legível ("OS #42") — a etiqueta usada para falar da OS.
+   * O `id` continua sendo a chave técnica (URL, API). Ausente nas OS que ainda
+   * vivem no Firestore, que nunca tiveram numeração.
+   */
+  numero?: number;
   veiculoId?: string;
   origemChecklistId?: string;
   origemVinculoId?: string;
