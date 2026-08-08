@@ -113,14 +113,23 @@ interface Opcoes {
 }
 
 async function executar(caminho: string, opcoes: Opcoes, token: string | null): Promise<Response> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const ehFormData = opcoes.body instanceof FormData;
+
+  // Em multipart o Content-Type carrega o `boundary`, que só o runtime sabe
+  // gerar. Definir 'multipart/form-data' à mão omitiria o boundary e o servidor
+  // não conseguiria separar as partes — por isso aqui o header é deixado de fora.
+  const headers: Record<string, string> = ehFormData ? {} : { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  let body: BodyInit | undefined;
+  if (ehFormData) body = opcoes.body as FormData;
+  else if (opcoes.body !== undefined) body = JSON.stringify(opcoes.body);
 
   try {
     return await fetch(`${BASE_URL}${caminho}`, {
       method: opcoes.method ?? 'GET',
       headers,
-      body: opcoes.body !== undefined ? JSON.stringify(opcoes.body) : undefined,
+      body,
     });
   } catch {
     throw new NetworkError();
@@ -175,7 +184,9 @@ export const api = {
     request<T>(caminho, { method: 'POST', body, publico }),
   put: <T>(caminho: string, body?: unknown) => request<T>(caminho, { method: 'PUT', body }),
   patch: <T>(caminho: string, body?: unknown) => request<T>(caminho, { method: 'PATCH', body }),
-  delete: <T>(caminho: string) => request<T>(caminho, { method: 'DELETE' }),
+  delete: <T>(caminho: string, body?: unknown) => request<T>(caminho, { method: 'DELETE', body }),
+  /** Envio multipart (imagens). O FormData atravessa sem virar JSON. */
+  upload: <T>(caminho: string, form: FormData) => request<T>(caminho, { method: 'POST', body: form }),
 };
 
 export { BASE_URL };

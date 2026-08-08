@@ -7,6 +7,8 @@ import {
 } from 'firebase/storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { storage } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
+import * as backend from './storage.backend';
 
 /**
  * Redimensiona e comprime uma foto local antes do upload.
@@ -87,6 +89,7 @@ export async function uploadFotosOS(
   onProgress?: (percent: number) => void,
 ): Promise<string[]> {
   if (localUris.length === 0) return [];
+  if (USAR_BACKEND) return backend.uploadFotosOS(localUris, osId, onProgress);
 
   const timestamp = Date.now();
   const progressByIndex = new Array(localUris.length).fill(0);
@@ -120,6 +123,7 @@ export async function uploadFotosGenerica(
   onProgress?: (percent: number) => void,
 ): Promise<string[]> {
   if (localUris.length === 0) return [];
+  if (USAR_BACKEND) return backend.uploadFotosGenerica(localUris, basePath, onProgress);
 
   const timestamp = Date.now();
   let concluidos = 0;
@@ -147,6 +151,8 @@ export async function uploadFotosGenerica(
  * Falha silenciosa por foto individual.
  */
 export async function deleteFotosOS(fotoUrls: string[]): Promise<void> {
+  if (USAR_BACKEND) return backend.deleteFotosOS(fotoUrls);
+
   await Promise.allSettled(
     fotoUrls.map((url) => deleteObject(ref(storage, url))),
   );
@@ -163,6 +169,8 @@ export async function uploadFotoPerfil(
   uid: string,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
+  if (USAR_BACKEND) return backend.uploadFotoPerfil(localUri, uid, onProgress);
+
   const response = await fetch(localUri);
   const blob = await response.blob();
 
