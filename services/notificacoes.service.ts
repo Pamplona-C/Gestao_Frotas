@@ -71,6 +71,20 @@ export async function getNotifications(userId: string): Promise<Notificacao[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/**
+ * Quantas não lidas — é só isso que o badge precisa saber.
+ *
+ * No backend existe um endpoint dedicado: contar 50 notificações no aparelho
+ * para descobrir um número que o servidor já sabe é desperdício, e o badge
+ * apareceria errado se houvesse mais de 50.
+ */
+export async function contarNaoLidas(uid: string): Promise<number> {
+  if (USAR_BACKEND) return backend.contarNaoLidas();
+
+  const itens = await getNotifications(uid);
+  return itens.filter((n) => !n.read).length;
+}
+
 export async function markAsRead(id: string): Promise<void> {
   if (USAR_BACKEND) return backend.markAsRead(id);
 
