@@ -232,12 +232,15 @@ export async function getUserById(uid: string): Promise<UserProfile | null> {
   return snap.exists() ? (snap.data() as UserProfile) : null;
 }
 
+/** Devolve a URL que ficou gravada, ou null se não deu para gravar. */
 export async function updatePhotoURL(
   localUriOrNull: string | null,
   onProgress?: (percent: number) => void,
-): Promise<void> {
+): Promise<string | null> {
+  if (AUTH_BACKEND) return backend.atualizarFotoPerfil(localUriOrNull, onProgress);
+
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) return null;
 
   let photoURL: string | null = localUriOrNull;
 
@@ -252,6 +255,7 @@ export async function updatePhotoURL(
 
   await updateProfile(user, { photoURL: photoURL ?? '' });
   await updateDoc(doc(db, 'usuarios', user.uid), { photoURL });
+  return photoURL;
 }
 
 // ── Recuperação de senha (só existe no backend) ────────────────────────────────

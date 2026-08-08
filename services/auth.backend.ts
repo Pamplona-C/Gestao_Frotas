@@ -113,6 +113,35 @@ export async function meuPerfil(): Promise<AppUser> {
 }
 
 /**
+ * Troca (ou remove) a foto de perfil e devolve a URL que ficou gravada.
+ *
+ * Três entradas possíveis:
+ *  - URI local (`file://`) → sobe para o storage e grava a URL devolvida;
+ *  - URL remota (`https://`, ex.: o avatar gerado com as iniciais) → grava direto;
+ *  - `null` → remove a foto.
+ *
+ * A remoção manda string vazia, não `null`: no PATCH do backend `null` significa
+ * "não mexe neste campo", então mandar null deixaria a foto antiga no lugar.
+ */
+export async function atualizarFotoPerfil(
+  localUriOrNull: string | null,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  let photoUrl = '';
+
+  if (localUriOrNull?.startsWith('http')) {
+    photoUrl = localUriOrNull;
+  } else if (localUriOrNull) {
+    const { uploadFotoPerfil } = await import('./storage.service');
+    // O dono da foto vem do token; o parâmetro existe só pela assinatura antiga.
+    photoUrl = await uploadFotoPerfil(localUriOrNull, '', onProgress);
+  }
+
+  const atualizado = await api.patch<UsuarioResponse>('/usuarios/me', { photoUrl });
+  return atualizado.photoUrl ?? '';
+}
+
+/**
  * Restaura a sessão guardada no aparelho. Devolve null quando não há sessão
  * válida — o cliente HTTP já cuida de renovar o token se ele tiver vencido.
  */
