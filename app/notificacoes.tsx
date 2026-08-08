@@ -62,8 +62,31 @@ export default function NotificacoesScreen() {
   const sections = buildSections(notificacoes);
 
   const handlePressItem = async (item: Notificacao) => {
-    if (!item.read) await markAsRead(item.id);
-    router.push(`/os/${item.osId}`);
+    if (!item.read) {
+      // Atualiza a lista na hora: sem tempo real, o servidor confirma a leitura
+      // mas nada redesenharia a tela — o item continuaria parecendo não lido.
+      setNotificacoes((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)),
+      );
+      markAsRead(item.id).catch((err) => {
+        console.warn('[notificacoes] falha ao marcar como lida:', err);
+        setNotificacoes((prev) =>
+          prev.map((n) => (n.id === item.id ? { ...n, read: false } : n)),
+        );
+      });
+    }
+    // Nem toda notificação vem de uma OS: vínculo criado e abastecimento
+    // lançado não têm `osId`, e navegar para `/os/` levaria a lugar nenhum.
+    if (item.osId) router.push(`/os/${item.osId}`);
+  };
+
+  const handleMarcarTodas = () => {
+    const anteriores = notificacoes;
+    setNotificacoes((prev) => prev.map((n) => ({ ...n, read: true })));
+    markAllAsRead(unreadIds).catch((err) => {
+      console.warn('[notificacoes] falha ao marcar todas:', err);
+      setNotificacoes(anteriores);
+    });
   };
 
   const renderItem = ({ item }: { item: ListItem }) => {
@@ -110,7 +133,7 @@ export default function NotificacoesScreen() {
         </TouchableOpacity>
         <Text variant="titleLarge" style={styles.pageTitle}>Notificações</Text>
         {unreadIds.length > 0 ? (
-          <TouchableOpacity onPress={() => markAllAsRead(unreadIds)}>
+          <TouchableOpacity onPress={handleMarcarTodas}>
             <Text style={styles.markAll}>Marcar todas</Text>
           </TouchableOpacity>
         ) : (

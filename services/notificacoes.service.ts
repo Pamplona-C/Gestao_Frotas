@@ -14,7 +14,9 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
 import { Notificacao } from '../types';
+import * as backend from './notificacoes.backend';
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -36,6 +38,14 @@ export function subscribeToNotificacoes(
   uid: string,
   callback: (items: Notificacao[]) => void,
 ): Unsubscribe {
+  if (USAR_BACKEND) {
+    let cancelado = false;
+    backend.getNotifications(uid)
+      .then((items) => { if (!cancelado) callback(items); })
+      .catch((err) => console.warn('[notificacoes] falha ao carregar:', err));
+    return () => { cancelado = true; };
+  }
+
   const q = query(
     collection(db, 'notificacoes'),
     where('userId', '==', uid),
@@ -49,6 +59,8 @@ export function subscribeToNotificacoes(
 }
 
 export async function getNotifications(userId: string): Promise<Notificacao[]> {
+  if (USAR_BACKEND) return backend.getNotifications(userId);
+
   const q = query(
     collection(db, 'notificacoes'),
     where('userId', '==', userId),
@@ -60,18 +72,32 @@ export async function getNotifications(userId: string): Promise<Notificacao[]> {
 }
 
 export async function markAsRead(id: string): Promise<void> {
+  if (USAR_BACKEND) return backend.markAsRead(id);
+
   await updateDoc(doc(db, 'notificacoes', id), { read: true });
 }
 
 export async function markAllAsRead(ids: string[]): Promise<void> {
+  // No backend basta uma chamada: ele marca todas as do usuário logado.
+  if (USAR_BACKEND) return backend.markAllAsRead();
+
   const batch = writeBatch(db);
   ids.forEach((id) => batch.update(doc(db, 'notificacoes', id), { read: true }));
   await batch.commit();
 }
 
+/**
+ * Só o servidor cria notificação — no backend elas nascem de eventos de
+ * domínio (OS aberta, vínculo criado, abastecimento lançado). Manter isso no
+ * app permitiria a qualquer cliente forjar notificação para outra pessoa.
+ */
 export async function createNotification(
   payload: Omit<Notificacao, 'id' | 'createdAt' | 'expiresAt' | 'read'>,
 ): Promise<void> {
+  if (USAR_BACKEND) {
+    throw new Error('createNotification não existe no backend: notificações são geradas por eventos');
+  }
+
   const now = new Date();
   await addDoc(collection(db, 'notificacoes'), {
     ...payload,
