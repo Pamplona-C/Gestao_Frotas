@@ -1,6 +1,8 @@
 import { onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, app } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
+import * as backend from './metricas.backend';
 import { MetricasFrota } from '../types';
 
 const METRICAS_DOC = doc(db, 'metricas-frota', 'geral');
@@ -14,6 +16,10 @@ const METRICAS_VAZIO: MetricasFrota = {
 
 /** Chama a Cloud Function para popular o documento caso ainda não exista. */
 export async function seedMetricasSeNecessario(): Promise<void> {
+  // No backend não há o que semear: o dashboard é calculado na hora, direto das
+  // OS, em vez de ler um documento que uma Cloud Function mantinha atualizado.
+  if (USAR_BACKEND) return;
+
   const snap = await getDoc(METRICAS_DOC);
   if (snap.exists()) return;
   const fn = httpsCallable(getFunctions(app, 'southamerica-east1'), 'recalcularMetricasManual');
@@ -23,6 +29,19 @@ export async function seedMetricasSeNecessario(): Promise<void> {
 export function subscribeToMetricas(
   callback: (metricas: MetricasFrota) => void,
 ): () => void {
+  if (USAR_BACKEND) {
+    let cancelado = false;
+    backend
+      .getMetricas()
+      .then((m) => { if (!cancelado) callback(m); })
+      .catch((err) => {
+        console.warn('[metricas] falha ao carregar:', err);
+        // Sem números é melhor mostrar zeros do que a tela travada em branco.
+        if (!cancelado) callback(METRICAS_VAZIO);
+      });
+    return () => { cancelado = true; };
+  }
+
   return onSnapshot(METRICAS_DOC, (snap) => {
     if (!snap.exists()) {
       callback(METRICAS_VAZIO);
