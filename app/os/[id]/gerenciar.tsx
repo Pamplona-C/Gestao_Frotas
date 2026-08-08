@@ -17,8 +17,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { arrayUnion, doc, runTransaction, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
+import { USAR_BACKEND } from '../../../lib/flags';
 import { AppUser, CatalogoServico, Fornecedor, OrdemServico, OSStatus, ServicoRealizado, StatusEntry } from '../../../types';
-import { subscribeToOSById } from '../../../services/os.service';
+import { subscribeToOSById, salvarGestao, transferirOS } from '../../../services/os.service';
 import { getAllFornecedores } from '../../../services/fornecedor.service';
 import { getServicosAtivos } from '../../../services/catalogo.service';
 import { getGestoresAtivos } from '../../../services/usuarios.service';
@@ -166,14 +167,20 @@ export default function GerenciarOSScreen() {
             setLoadingTransferencia(true);
             setTransferenciaModal(false);
             try {
-              await updateDoc(doc(db, 'ordens-servico', os!.id), Object.fromEntries(
-                Object.entries({
-                  gestorId:           destino.uid,
-                  gestorNome:         destino.nome,
-                  gestorPhotoURL:     destino.photoURL ?? null,
-                  gestorDepartamento: destino.departamento,
-                }).filter(([, v]) => v !== undefined)
-              ));
+              if (USAR_BACKEND) {
+                // O backend só precisa do novo dono: nome, foto e departamento
+                // saem do cadastro dele, não de uma cópia gravada na OS.
+                await transferirOS(os!.id, destino.uid);
+              } else {
+                await updateDoc(doc(db, 'ordens-servico', os!.id), Object.fromEntries(
+                  Object.entries({
+                    gestorId:           destino.uid,
+                    gestorNome:         destino.nome,
+                    gestorPhotoURL:     destino.photoURL ?? null,
+                    gestorDepartamento: destino.departamento,
+                  }).filter(([, v]) => v !== undefined)
+                ));
+              }
               router.replace('/(tabs)');
             } catch (e: any) {
               console.error('[transferir]', e);
@@ -231,6 +238,27 @@ export default function GerenciarOSScreen() {
       novoStatus = 'em_andamento';
     }
     const temServicos = servicosRealizados.length > 0;
+
+    if (USAR_BACKEND) {
+      // Uma requisição só, numa transação: assumir, status, fornecedor, nota e
+      // itens. Encadear os endpoints granulares deixaria a OS pela metade se um
+      // falhasse no meio — e é a assunção que precisa ser atômica, senão dois
+      // gestores assumem a mesma OS.
+      try {
+        await salvarGestao(os.id, {
+          assumir:            primeiroAssignment,
+          status:             novoStatus !== os.status ? novoStatus : undefined,
+          fornecedorId:       selectedFornecedor ?? undefined,
+          notaInterna:        nota,
+          servicosRealizados: temServicos ? servicosRealizados : undefined,
+        });
+      } catch (e: any) {
+        Alert.alert('Erro', e?.message ?? 'Não foi possível salvar. Tente novamente.');
+        return;
+      }
+      router.back();
+      return;
+    }
 
     const updates = Object.fromEntries(Object.entries({
       status:             novoStatus,
