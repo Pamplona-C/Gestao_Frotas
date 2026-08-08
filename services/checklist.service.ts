@@ -13,6 +13,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
+import * as backend from './checklist.backend';
 import { Checklist } from '../types';
 import { uploadFotosGenerica } from './storage.service';
 
@@ -40,6 +42,8 @@ export async function createChecklist(
   fotosUris: Record<string, string>,
   onProgress?: (pct: number) => void,
 ): Promise<Checklist> {
+  if (USAR_BACKEND) return backend.createChecklist(data, fotosUris, onProgress);
+
   const angulos = Object.keys(fotosUris);
   const uris    = Object.values(fotosUris);
 
@@ -94,6 +98,9 @@ export async function skipChecklistDev(
   veiculoTipo: Checklist['veiculoTipo'],
 ): Promise<void> {
   if (!__DEV__) return;
+  if (USAR_BACKEND) {
+    return backend.skipChecklistDev(vinculoId, tipo, condutorId, veiculoId, veiculoTipo);
+  }
 
   const checklistRef = doc(collection(db, 'checklists'));
   const vinculoRef   = doc(db, 'vinculos', vinculoId);
@@ -129,6 +136,8 @@ export async function skipChecklistDev(
 }
 
 export async function getChecklistsByVinculo(vinculoId: string): Promise<Checklist[]> {
+  if (USAR_BACKEND) return backend.getChecklistsByVinculo(vinculoId);
+
   const q = query(collection(db, 'checklists'), where('vinculoId', '==', vinculoId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => docToChecklist(d.id, d.data()));
@@ -138,6 +147,21 @@ export function subscribeToRecentChecklists(
   callback: (checklists: Checklist[]) => void,
   pageSize = 300,
 ): Unsubscribe {
+  if (USAR_BACKEND) {
+    // Sem tempo real no REST: uma busca só, e o unsubscribe apenas impede que
+    // uma resposta atrasada chame o callback depois que a tela já saiu.
+    let cancelado = false;
+    backend
+      .getRecentChecklists(undefined, pageSize)
+      .then((items) => {
+        if (!cancelado) callback(items);
+      })
+      .catch((err) => console.warn('[checklist] falha ao listar recentes:', err));
+    return () => {
+      cancelado = true;
+    };
+  }
+
   const q = query(
     collection(db, 'checklists'),
     orderBy('completadoEm', 'desc'),
@@ -152,6 +176,8 @@ export async function getRecentChecklists(
   startIso?: string,
   pageSize = 200,
 ): Promise<Checklist[]> {
+  if (USAR_BACKEND) return backend.getRecentChecklists(startIso, pageSize);
+
   const q = startIso
     ? query(
       collection(db, 'checklists'),
@@ -170,6 +196,8 @@ export async function getRecentChecklists(
 }
 
 export async function getChecklistById(id: string): Promise<Checklist | null> {
+  if (USAR_BACKEND) return backend.getChecklistById(id);
+
   const snap = await getDoc(doc(db, 'checklists', id));
   if (!snap.exists()) return null;
   return docToChecklist(snap.id, snap.data());

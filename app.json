@@ -60,7 +60,8 @@
           "locationAlwaysAndWhenInUsePermission": "Sua localização é usada para registrar o local de atendimento da ordem de serviço."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
