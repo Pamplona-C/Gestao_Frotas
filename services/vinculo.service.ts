@@ -191,3 +191,36 @@ export async function encerrarVinculo(
     encerradoEm: new Date().toISOString(),
   });
 }
+
+/**
+ * Deriva a pendência de checklist a partir do estado real do vínculo.
+ *
+ * É a mesma regra que `scripts/backfill-pendencia-checklist.mjs` grava no campo
+ * `pendenciaChecklist`. Derivar em vez de ler o campo é deliberado: o campo só passou
+ * a ser escrito em 22/05/2026 (commit 77aa4fc) e uma query nele omite **em silêncio**
+ * todo vínculo anterior a essa data — justamente as pendências mais antigas, que são
+ * as que uma auditoria precisa ver primeiro.
+ */
+export function pendenciaDoVinculo(v: Vinculo): ChecklistPendencia {
+  if (v.checklistSaidaId) return null;
+  if (v.status === 'inativo') return 'saida';
+  if (v.checklistEntradaId) return null;
+  return 'entrada';
+}
+
+/**
+ * Lê a coleção inteira de vínculos para a auditoria de checklists (`app/checklists`).
+ *
+ * Um único read resolve as duas necessidades da tela: as pendências (via
+ * `pendenciaDoVinculo`) e o nome do veículo/condutor de cada checklist concluído —
+ * o que dispensa o `getVinculosByIds()` em lote que a tela fazia antes.
+ *
+ * Revisitar quando `vinculos` passar de ~1000 documentos: aí compensa rodar o backfill
+ * e voltar para o caminho indexado por `pendenciaChecklist`.
+ */
+export async function getVinculosParaAuditoria(): Promise<Vinculo[]> {
+  if (USAR_BACKEND) return backend.listarTodos();
+
+  const snap = await getDocs(collection(db, 'vinculos'));
+  return snap.docs.map((d) => docToVinculo(d.id, d.data()));
+}

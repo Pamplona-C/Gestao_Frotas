@@ -108,10 +108,10 @@ export default function ConfiguracoesScreen() {
                 onPress={() => router.push('/catalogo-servicos' as any)}
               />
               <OptionRow
-                icon="bar-chart-outline"
-                label="Relatórios"
-                sub="Auditoria de checklists"
-                onPress={() => router.push('/relatorios' as any)}
+                icon="clipboard-outline"
+                label="Checklists"
+                sub="Entradas, saídas e pendências"
+                onPress={() => router.push('/checklists' as any)}
               />
             </Surface>
           </>

@@ -171,3 +171,9 @@ export async function addCondutorToVinculo(
 export async function encerrarVinculo(id: string): Promise<void> {
   await api.post(`/vinculos/${id}/encerrar`);
 }
+
+/** Auditoria de checklists: a tela deriva as pendências do estado de cada vínculo. */
+export async function listarTodos(): Promise<Vinculo[]> {
+  const todos = await api.get<VinculoResponse[]>('/vinculos');
+  return todos.map(paraVinculo);
+}
