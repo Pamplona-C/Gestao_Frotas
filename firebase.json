@@ -3,7 +3,13 @@
     {
       "source": "functions",
       "codebase": "default",
-      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"]
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
     }
   ],
   "firestore": {
@@ -12,5 +18,8 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "react-native": {
+    "messaging_android_notification_color": "@color/notification_icon_color"
   }
 }
