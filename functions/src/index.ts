@@ -1,15 +1,20 @@
-import * as admin from 'firebase-admin';
+import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { DocumentData, FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
+import { setGlobalOptions } from 'firebase-functions/v2';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { setGlobalOptions } from 'firebase-functions/v2';
 
-setGlobalOptions({ region: 'southamerica-east1' });
+// 512 MiB em vez dos 256 MB padrão: no Cloud Run a CPU é proporcional à memória
+// e o cold start é limitado por CPU — dobrar a memória dobra a CPU de partida.
+setGlobalOptions({ region: 'southamerica-east1', memory: '512MiB' });
 
-admin.initializeApp();
+initializeApp();
 
-const db        = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -28,9 +33,9 @@ interface ServicoRealizadoMetricas { tipo?: TipoServico; valor?: number }
  * Prioriza servicosRealizados; usa gastoPreventiva/gastoCorretiva como fallback
  * para OS antigas ou que ainda não têm serviços registrados.
  */
-function calcularCountsPrevCorr(os: FirebaseFirestore.DocumentData): {
+function calcularCountsPrevCorr(os: DocumentData): {
   preventiva: number;
-  corretiva:  number;
+  corretiva: number;
 } {
   const servicos: ServicoRealizadoMetricas[] = Array.isArray(os.servicosRealizados)
     ? os.servicosRealizados
@@ -40,7 +45,7 @@ function calcularCountsPrevCorr(os: FirebaseFirestore.DocumentData): {
     return servicos.reduce(
       (acc, s) => {
         if (s.tipo === 'preventiva') acc.preventiva += 1;
-        if (s.tipo === 'corretiva')  acc.corretiva  += 1;
+        if (s.tipo === 'corretiva') acc.corretiva += 1;
         return acc;
       },
       { preventiva: 0, corretiva: 0 },
@@ -49,7 +54,7 @@ function calcularCountsPrevCorr(os: FirebaseFirestore.DocumentData): {
 
   return {
     preventiva: Number(os.gastoPreventiva ?? 0) > 0 ? 1 : 0,
-    corretiva:  Number(os.gastoCorretiva  ?? 0) > 0 ? 1 : 0,
+    corretiva: Number(os.gastoCorretiva ?? 0) > 0 ? 1 : 0,
   };
 }
 
@@ -68,31 +73,31 @@ function calcularCountsPrevCorr(os: FirebaseFirestore.DocumentData): {
  *   fim    = 2026-07-01T00:00:00-03:00 → 2026-07-01T03:00:00Z
  */
 function getMesRangeSP(date = new Date()): {
-  mes:   string;
-  inicio: admin.firestore.Timestamp;
-  fim:    admin.firestore.Timestamp;
+  mes: string;
+  inicio: Timestamp;
+  fim: Timestamp;
 } {
   // toLocaleString com en-US retorna "MM/DD/YYYY, HH:MM:SS AM/PM"
   const spStr = date.toLocaleString('en-US', {
     timeZone: 'America/Sao_Paulo',
-    year:  'numeric',
+    year: 'numeric',
     month: '2-digit',
-    day:   '2-digit',
+    day: '2-digit',
   });
   const [mm, , yyyy] = spStr.split('/');
-  const year  = parseInt(yyyy, 10);
-  const month = parseInt(mm,   10); // 1-indexed
+  const year = parseInt(yyyy, 10);
+  const month = parseInt(mm, 10); // 1-indexed
 
   const mes = `${year}-${String(month).padStart(2, '0')}`;
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  const nextYear  = month === 12 ? year + 1 : year;
+  const nextYear = month === 12 ? year + 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
 
   return {
     mes,
-    inicio: admin.firestore.Timestamp.fromDate(new Date(`${year}-${pad(month)}-01T00:00:00-03:00`)),
-    fim:    admin.firestore.Timestamp.fromDate(new Date(`${nextYear}-${pad(nextMonth)}-01T00:00:00-03:00`)),
+    inicio: Timestamp.fromDate(new Date(`${year}-${pad(month)}-01T00:00:00-03:00`)),
+    fim: Timestamp.fromDate(new Date(`${nextYear}-${pad(nextMonth)}-01T00:00:00-03:00`)),
   };
 }
 
@@ -102,8 +107,8 @@ function getMesRangeSP(date = new Date()): {
  * depois constrói os limites com offset explícito '-03:00'.
  */
 function getDiaRangeSP(date = new Date()): {
-  inicio: admin.firestore.Timestamp;
-  fim:    admin.firestore.Timestamp;
+  inicio: Timestamp;
+  fim: Timestamp;
 } {
   const spStr = date.toLocaleString('en-US', {
     timeZone: 'America/Sao_Paulo',
@@ -113,10 +118,10 @@ function getDiaRangeSP(date = new Date()): {
   const pad = (n: string | number) => String(n).padStart(2, '0');
 
   return {
-    inicio: admin.firestore.Timestamp.fromDate(
+    inicio: Timestamp.fromDate(
       new Date(`${yyyy}-${pad(mm)}-${pad(dd)}T00:00:00-03:00`),
     ),
-    fim: admin.firestore.Timestamp.fromDate(
+    fim: Timestamp.fromDate(
       new Date(`${yyyy}-${pad(mm)}-${pad(dd)}T23:59:59.999-03:00`),
     ),
   };
@@ -135,11 +140,11 @@ async function recalcularMetricas(): Promise<void> {
 
   const activeOS = activeSnap.docs.map((d) => d.data());
 
-  const osAguardando          = activeOS.filter((os) => os.status === 'nova').length;
-  const osEmAndamento         = activeOS.filter((os) => os.status === 'em_andamento').length;
-  const osEmDiagnostico       = activeOS.filter((os) => os.status === 'em_diagnostico').length;
+  const osAguardando = activeOS.filter((os) => os.status === 'nova').length;
+  const osEmAndamento = activeOS.filter((os) => os.status === 'em_andamento').length;
+  const osEmDiagnostico = activeOS.filter((os) => os.status === 'em_diagnostico').length;
   const osAguardandoAprovacao = activeOS.filter((os) => os.status === 'orcamento_aprovado').length;
-  const totalOSAtivas         = activeOS.length;
+  const totalOSAtivas = activeOS.length;
 
   const veiculosEmOficinaSet = new Set(
     activeOS
@@ -149,32 +154,32 @@ async function recalcularMetricas(): Promise<void> {
   );
 
   // 2. OS do mês corrente (qualquer status) para gasto e proporção
-  // criadoEm é gravado como serverTimestamp() → admin.firestore.Timestamp
+  // criadoEm é gravado como serverTimestamp() → Timestamp
   const mesSnap = await db
     .collection('ordens-servico')
     .where('criadoEm', '>=', inicio)
-    .where('criadoEm', '<',  fim)
+    .where('criadoEm', '<', fim)
     .get();
 
   let gastoPreventiva = 0;
-  let gastoCorretiva  = 0;
+  let gastoCorretiva = 0;
   let countPreventiva = 0;
-  let countCorretiva  = 0;
+  let countCorretiva = 0;
 
   mesSnap.docs.forEach((d) => {
     const os = d.data();
     gastoPreventiva += Number(os.gastoPreventiva ?? 0);
-    gastoCorretiva  += Number(os.gastoCorretiva  ?? 0);
+    gastoCorretiva += Number(os.gastoCorretiva ?? 0);
     const counts = calcularCountsPrevCorr(os);
     countPreventiva += counts.preventiva;
-    countCorretiva  += counts.corretiva;
+    countCorretiva += counts.corretiva;
   });
 
   const { inicio: diaInicio, fim: diaFim } = getDiaRangeSP();
   const osConcluidasHoje = mesSnap.docs.filter((d) => {
     const os = d.data();
     if (os.status !== 'concluida') return false;
-    const ts = os.criadoEm as admin.firestore.Timestamp | undefined;
+    const ts = os.criadoEm as Timestamp | undefined;
     if (!ts?.toMillis) return false;
     const ms = ts.toMillis();
     return ms >= diaInicio.toMillis() && ms <= diaFim.toMillis();
@@ -189,17 +194,17 @@ async function recalcularMetricas(): Promise<void> {
     totalOSAtivas,
     veiculosEmOficina: veiculosEmOficinaSet.size,
     gastoMes: {
-      total:      gastoPreventiva + gastoCorretiva,
+      total: gastoPreventiva + gastoCorretiva,
       preventiva: gastoPreventiva,
-      corretiva:  gastoCorretiva,
+      corretiva: gastoCorretiva,
       mes,
     },
     prevVsCorr: {
       preventiva: countPreventiva,
-      corretiva:  countCorretiva,
+      corretiva: countCorretiva,
       mes,
     },
-    atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    atualizadoEm: FieldValue.serverTimestamp(),
   });
 }
 
@@ -209,12 +214,40 @@ const ACTIVE_STATUSES = ['nova', 'em_andamento', 'em_diagnostico', 'orcamento_ap
 
 // ── Mensagens por status ───────────────────────────────────────────────────────
 
-const STATUS_MESSAGES: Record<OSStatus, { title: string; body: (osId: string) => string }> = {
-  nova:               { title: 'Nova OS',            body: (id) => `OS ${id.toUpperCase()} foi aberta` },
-  em_andamento:       { title: 'OS em andamento',    body: (id) => `Sua OS ${id.toUpperCase()} está sendo atendida` },
-  em_diagnostico:     { title: 'OS em diagnóstico',  body: (id) => `Sua OS ${id.toUpperCase()} está em diagnóstico` },
-  orcamento_aprovado: { title: 'Orçamento aprovado', body: (id) => `O orçamento da OS ${id.toUpperCase()} foi aprovado` },
-  concluida:          { title: 'OS concluída',       body: (id) => `Sua OS ${id.toUpperCase()} foi concluída com sucesso` },
+/**
+ * Nome legível do veículo para mensagens de notificação.
+ *
+ * Cascata: modelo → placa → número de frota → marca → rótulo neutro. Nunca
+ * devolve vazio nem "undefined": o app grava `frota: '—'` quando não sabe, e o
+ * painel web simplesmente omite o campo — os dois casos caem para o próximo
+ * nível em vez de virar texto quebrado no celular de alguém.
+ */
+function nomeVeiculo(os: DocumentData): string {
+  const limpo = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+  const modelo = limpo(os.veiculoModelo);
+  if (modelo) return modelo;
+
+  const placa = limpo(os.placa);
+  if (placa) return placa;
+
+  const frota = limpo(os.frota);
+  if (frota && frota !== '—') return `Frota ${frota}`;
+
+  const marca = limpo(os.veiculoMarca);
+  if (marca) return marca;
+
+  return 'sem identificação';
+}
+
+// O corpo recebe o nome do veículo, não o id: o id é um UUID e não diz nada a quem
+// lê a notificação. O id continua no payload `data`, que é o que abre a OS no toque.
+const STATUS_MESSAGES: Record<OSStatus, { title: string; body: (veiculo: string) => string }> = {
+  nova: { title: 'Nova OS', body: (v) => `OS do veículo ${v} foi aberta` },
+  em_andamento: { title: 'OS em andamento', body: (v) => `Sua OS do veículo ${v} está sendo atendida` },
+  em_diagnostico: { title: 'OS em diagnóstico', body: (v) => `Sua OS do veículo ${v} está em diagnóstico` },
+  orcamento_aprovado: { title: 'Orçamento aprovado', body: (v) => `O orçamento da OS do veículo ${v} foi aprovado` },
+  concluida: { title: 'OS concluída', body: (v) => `Sua OS do veículo ${v} foi concluída com sucesso` },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -233,7 +266,7 @@ async function removeStaleToken(uid: string): Promise<void> {
   await db
     .collection('usuarios')
     .doc(uid)
-    .update({ fcmToken: admin.firestore.FieldValue.delete() });
+    .update({ fcmToken: FieldValue.delete() });
 }
 
 /**
@@ -258,7 +291,7 @@ async function getGestorTokenEntries(): Promise<TokenEntry[]> {
  */
 async function sendMulticast(
   entries: TokenEntry[],
-  message: Omit<admin.messaging.MulticastMessage, 'tokens'>,
+  message: Omit<MulticastMessage, 'tokens'>,
 ): Promise<void> {
   const BATCH = 500;
 
@@ -282,7 +315,7 @@ async function sendMulticast(
       const batch = db.batch();
       stale.forEach((uid) =>
         batch.update(db.collection('usuarios').doc(uid), {
-          fcmToken: admin.firestore.FieldValue.delete(),
+          fcmToken: FieldValue.delete(),
         }),
       );
       await batch.commit();
@@ -293,57 +326,66 @@ async function sendMulticast(
 // ── Trigger 1: OS criada → notifica gestores ───────────────────────────────────
 
 export const onOSCreated = onDocumentCreated(
-  { document: 'ordens-servico/{id}', minInstances: 1 },
+  { document: 'ordens-servico/{id}' },
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
 
-    await db.collection('metricas-frota').doc('geral').set(
-      {
-        osAguardando:  admin.firestore.FieldValue.increment(1),
-        totalOSAtivas: admin.firestore.FieldValue.increment(1),
-      },
-      { merge: true },
-    );
-
-    const osId         = event.params.id;
+    const osId = event.params.id;
     const condutorNome = (data.condutorNome as string) ?? 'Condutor';
-    const placa        = (data.placa as string) ?? '';
+    const placa = (data.placa as string) ?? '';
 
+    // Sem gestor com token não há a quem notificar — mas as métricas abaixo
+    // precisam correr mesmo assim, então isto é um bloco, não um early return.
     const entries = await getGestorTokenEntries();
-    if (entries.length === 0) return;
 
-    const title = 'Nova OS aguardando análise';
-    const body  = `Aberta por ${condutorNome} · ${placa}`;
+    if (entries.length > 0) {
+      const title = 'Nova OS aguardando análise';
+      const body = `Aberta por ${condutorNome} · ${placa}`;
 
-    await sendMulticast(entries, {
-      notification: { title, body },
-      data:    { osId },
-      android: {
-        priority: 'high',
-        notification: { channelId: 'os-updates', sound: 'default' },
-      },
-      apns: {
-        payload: { aps: { sound: 'default', badge: 1 } },
-      },
-    });
-
-    // Persiste histórico para cada gestor destinatário
-    const batch = db.batch();
-    entries.forEach(({ uid }) => {
-      const ref = db.collection('notificacoes').doc();
-      batch.set(ref, {
-        userId: uid,
-        type: 'os_criada',
-        title,
-        body,
-        osId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
-        read: false,
+      await sendMulticast(entries, {
+        notification: { title, body },
+        data: { osId },
+        android: {
+          priority: 'high',
+          notification: { channelId: 'os-updates', sound: 'default' },
+        },
+        apns: {
+          payload: { aps: { sound: 'default', badge: 1 } },
+        },
       });
-    });
-    await batch.commit();
+
+      // Persiste histórico para cada gestor destinatário
+      const batch = db.batch();
+      entries.forEach(({ uid }) => {
+        const ref = db.collection('notificacoes').doc();
+        batch.set(ref, {
+          userId: uid,
+          type: 'os_criada',
+          title,
+          body,
+          osId,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          read: false,
+        });
+      });
+      await batch.commit();
+    }
+
+    // Métricas por último e isoladas: é bookkeeping, e o recalcularMetricasDiario
+    // reescreve o documento do zero às 00:05. Não pode derrubar a notificação.
+    try {
+      await db.collection('metricas-frota').doc('geral').set(
+        {
+          osAguardando: FieldValue.increment(1),
+          totalOSAtivas: FieldValue.increment(1),
+        },
+        { merge: true },
+      );
+    } catch (error) {
+      console.warn('[onOSCreated] falha ao incrementar métricas:', error);
+    }
   },
 );
 
@@ -353,13 +395,13 @@ export const onOSStatusUpdated = onDocumentUpdated(
   { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
-    const after  = event.data?.after.data();
+    const after = event.data?.after.data();
     if (!before || !after) return;
 
     if (before.status === after.status) return;
 
-    const osId       = event.params.id;
-    const newStatus  = after.status as OSStatus;
+    const osId = event.params.id;
+    const newStatus = after.status as OSStatus;
     const condutorId = after.condutorId as string | undefined;
 
     const msg = STATUS_MESSAGES[newStatus];
@@ -371,15 +413,17 @@ export const onOSStatusUpdated = onDocumentUpdated(
     const condutorDoc = await db.collection('usuarios').doc(condutorId).get();
     const token = condutorDoc.data()?.fcmToken as string | undefined;
 
+    const veiculo = nomeVeiculo(after);
+
     const title = msg.title;
-    const body  = msg.body(osId);
+    const body = msg.body(veiculo);
 
     if (token) {
       try {
         await messaging.send({
           token,
           notification: { title, body },
-          data:    { osId },
+          data: { osId },
           android: {
             priority: 'high',
             notification: { channelId: 'os-updates', sound: 'default' },
@@ -402,8 +446,8 @@ export const onOSStatusUpdated = onDocumentUpdated(
       title,
       body,
       osId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
       read: false,
     });
   },
@@ -417,17 +461,17 @@ export const onVinculoCriado = onDocumentCreated(
     const data = event.data?.data();
     if (!data) return;
 
-    const condutorId   = data.condutorId   as string;
-    const veiculoMarca = data.veiculoMarca  as string;
-    const veiculoModelo= data.veiculoModelo as string;
-    const veiculoFrota = data.veiculoFrota  as string;
+    const condutorId = data.condutorId as string;
+    const veiculoMarca = data.veiculoMarca as string;
+    const veiculoModelo = data.veiculoModelo as string;
+    const veiculoFrota = data.veiculoFrota as string;
 
     const condutorDoc = await db.collection('usuarios').doc(condutorId).get();
     const token = condutorDoc.data()?.fcmToken as string | undefined;
     if (!token) return;
 
     const title = 'Veículo vinculado';
-    const body  = `${veiculoMarca} ${veiculoModelo} (Frota ${veiculoFrota}) foi vinculado a você. Faça o checklist de entrada para começar.`;
+    const body = `${veiculoMarca} ${veiculoModelo} (Frota ${veiculoFrota}) foi vinculado a você. Faça o checklist de entrada para começar.`;
 
     try {
       await messaging.send({
@@ -455,18 +499,18 @@ export const onOSEntregueOficina = onDocumentUpdated(
   { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
-    const after  = event.data?.after.data();
+    const after = event.data?.after.data();
     if (!before || !after) return;
 
     if (before.entregueOficinaEm || !after.entregueOficinaEm) return;
 
-    const osId        = event.params.id;
-    const condutorNome  = (after.condutorNome as string) ?? 'Condutor';
-    const veiculo       = (after.veiculoModelo as string | undefined) || (after.placa as string | undefined) || `Frota ${after.frota as string}`;
-    const gestorId      = (after.gestorId    as string | undefined);
+    const osId = event.params.id;
+    const condutorNome = (after.condutorNome as string) ?? 'Condutor';
+    const veiculo = nomeVeiculo(after);
+    const gestorId = (after.gestorId as string | undefined);
 
     const title = 'Veículo entregue na oficina';
-    const body  = `${condutorNome} entregou o veículo ${veiculo} na oficina`;
+    const body = `${condutorNome} entregou o veículo ${veiculo} na oficina`;
 
     if (gestorId) {
       const gestorDoc = await db.collection('usuarios').doc(gestorId).get();
@@ -477,7 +521,7 @@ export const onOSEntregueOficina = onDocumentUpdated(
           await messaging.send({
             token,
             notification: { title, body },
-            data:    { osId },
+            data: { osId },
             android: {
               priority: 'high',
               notification: { channelId: 'os-updates', sound: 'default' },
@@ -497,8 +541,8 @@ export const onOSEntregueOficina = onDocumentUpdated(
         title,
         body,
         osId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
         read: false,
       });
     } else {
@@ -507,7 +551,7 @@ export const onOSEntregueOficina = onDocumentUpdated(
       if (entries.length > 0) {
         await sendMulticast(entries, {
           notification: { title, body },
-          data:    { osId },
+          data: { osId },
           android: {
             priority: 'high',
             notification: { channelId: 'os-updates', sound: 'default' },
@@ -525,8 +569,8 @@ export const onOSEntregueOficina = onDocumentUpdated(
           title,
           body,
           osId,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
           read: false,
         });
       });
@@ -541,18 +585,18 @@ export const onOSRetornoOficina = onDocumentUpdated(
   { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
-    const after  = event.data?.after.data();
+    const after = event.data?.after.data();
     if (!before || !after) return;
 
     if (before.retornouOficinaEm || !after.retornouOficinaEm) return;
 
-    const osId        = event.params.id;
-    const condutorNome  = (after.condutorNome as string) ?? 'Condutor';
-    const veiculo       = (after.veiculoModelo as string | undefined) || (after.placa as string | undefined) || `Frota ${after.frota as string}`;
-    const gestorId      = (after.gestorId    as string | undefined);
+    const osId = event.params.id;
+    const condutorNome = (after.condutorNome as string) ?? 'Condutor';
+    const veiculo = nomeVeiculo(after);
+    const gestorId = (after.gestorId as string | undefined);
 
     const title = 'Veículo retornou da oficina';
-    const body  = `${condutorNome} retirou o veículo ${veiculo} da oficina`;
+    const body = `${condutorNome} retirou o veículo ${veiculo} da oficina`;
 
     if (gestorId) {
       const gestorDoc = await db.collection('usuarios').doc(gestorId).get();
@@ -563,7 +607,7 @@ export const onOSRetornoOficina = onDocumentUpdated(
           await messaging.send({
             token,
             notification: { title, body },
-            data:    { osId },
+            data: { osId },
             android: {
               priority: 'high',
               notification: { channelId: 'os-updates', sound: 'default' },
@@ -583,8 +627,8 @@ export const onOSRetornoOficina = onDocumentUpdated(
         title,
         body,
         osId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
         read: false,
       });
     } else {
@@ -593,7 +637,7 @@ export const onOSRetornoOficina = onDocumentUpdated(
       if (entries.length > 0) {
         await sendMulticast(entries, {
           notification: { title, body },
-          data:    { osId },
+          data: { osId },
           android: {
             priority: 'high',
             notification: { channelId: 'os-updates', sound: 'default' },
@@ -611,8 +655,8 @@ export const onOSRetornoOficina = onDocumentUpdated(
           title,
           body,
           osId,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(Date.now() + 90 * 24 * 60 * 60 * 1000),
           read: false,
         });
       });
@@ -628,7 +672,7 @@ export const onUsuarioDeleted = onDocumentDeleted(
   async (event) => {
     const uid = event.params.uid;
     try {
-      await admin.auth().deleteUser(uid);
+      await getAuth().deleteUser(uid);
     } catch (err: unknown) {
       const code = (err as { errorInfo?: { code?: string } })?.errorInfo?.code;
       if (code !== 'auth/user-not-found') throw err;
@@ -647,17 +691,17 @@ export const enviarLembretesOS = onSchedule(
     // Requer índice composto: status + lembreteEnviado + dataDesejada (firestore.indexes.json).
     const snap = await db
       .collection('ordens-servico')
-      .where('status',           'in', ACTIVE_STATUSES)
-      .where('lembreteEnviado',  '==', false)
-      .where('dataDesejada',     '>=', inicio)
-      .where('dataDesejada',     '<=', fim)
+      .where('status', 'in', ACTIVE_STATUSES)
+      .where('lembreteEnviado', '==', false)
+      .where('dataDesejada', '>=', inicio)
+      .where('dataDesejada', '<=', fim)
       .get();
 
     await Promise.all(
       snap.docs.map(async (d) => {
         const os = d.data();
         const title = 'Lembrete de OS agendada';
-        const body  = `Sua OS do veículo ${os.placa} está marcada para hoje. Não se esqueça de levar à oficina!`;
+        const body = `Sua OS do veículo ${os.placa} está marcada para hoje. Não se esqueça de levar à oficina!`;
 
         const condutorDoc = await db.collection('usuarios').doc(os.condutorId).get();
         const token = condutorDoc.data()?.fcmToken as string | undefined;
@@ -690,16 +734,16 @@ export const enviarLembretesOS = onSchedule(
           title,
           body,
           osId: d.id,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: admin.firestore.Timestamp.fromMillis(
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(
             Date.now() + 90 * 24 * 60 * 60 * 1000
           ),
           read: false,
         });
 
         batch.update(d.ref, {
-          lembreteEnviado:   true,
-          lembreteEnviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          lembreteEnviado: true,
+          lembreteEnviadoEm: FieldValue.serverTimestamp(),
         });
 
         await batch.commit();
@@ -714,59 +758,59 @@ export const onOSGastoOuOficinaUpdated = onDocumentUpdated(
   { document: 'ordens-servico/{id}' },
   async (event) => {
     const before = event.data?.before.data();
-    const after  = event.data?.after.data();
+    const after = event.data?.after.data();
     if (!before || !after) return;
 
-    const inc: Record<string, admin.firestore.FieldValue> = {};
+    const inc: Record<string, FieldValue> = {};
 
     // STATUS → contadores por status + totalOSAtivas
     if (before.status !== after.status) {
       const STATUS_FIELD: Record<string, string> = {
-        nova:               'osAguardando',
-        em_andamento:       'osEmAndamento',
-        em_diagnostico:     'osEmDiagnostico',
+        nova: 'osAguardando',
+        em_andamento: 'osEmAndamento',
+        em_diagnostico: 'osEmDiagnostico',
         orcamento_aprovado: 'osAguardandoAprovacao',
       };
 
       const fieldBefore = STATUS_FIELD[before.status];
-      const fieldAfter  = STATUS_FIELD[after.status];
+      const fieldAfter = STATUS_FIELD[after.status];
 
-      if (fieldBefore) inc[fieldBefore] = admin.firestore.FieldValue.increment(-1);
-      if (fieldAfter)  inc[fieldAfter]  = admin.firestore.FieldValue.increment(1);
+      if (fieldBefore) inc[fieldBefore] = FieldValue.increment(-1);
+      if (fieldAfter) inc[fieldAfter] = FieldValue.increment(1);
 
       if (before.status !== 'concluida' && after.status === 'concluida') {
-        inc['totalOSAtivas'] = admin.firestore.FieldValue.increment(-1);
+        inc['totalOSAtivas'] = FieldValue.increment(-1);
       } else if (before.status === 'concluida' && after.status !== 'concluida') {
-        inc['totalOSAtivas'] = admin.firestore.FieldValue.increment(1);
+        inc['totalOSAtivas'] = FieldValue.increment(1);
       }
     }
 
     // GASTO (R$) → gastoMes
     const deltaPreventiva = Number(after.gastoPreventiva ?? 0) - Number(before.gastoPreventiva ?? 0);
-    const deltaCorretiva  = Number(after.gastoCorretiva  ?? 0) - Number(before.gastoCorretiva  ?? 0);
-    const deltaTotal      = deltaPreventiva + deltaCorretiva;
+    const deltaCorretiva = Number(after.gastoCorretiva ?? 0) - Number(before.gastoCorretiva ?? 0);
+    const deltaTotal = deltaPreventiva + deltaCorretiva;
 
-    if (deltaTotal !== 0)      inc['gastoMes.total']      = admin.firestore.FieldValue.increment(deltaTotal);
-    if (deltaPreventiva !== 0) inc['gastoMes.preventiva'] = admin.firestore.FieldValue.increment(deltaPreventiva);
-    if (deltaCorretiva !== 0)  inc['gastoMes.corretiva']  = admin.firestore.FieldValue.increment(deltaCorretiva);
+    if (deltaTotal !== 0) inc['gastoMes.total'] = FieldValue.increment(deltaTotal);
+    if (deltaPreventiva !== 0) inc['gastoMes.preventiva'] = FieldValue.increment(deltaPreventiva);
+    if (deltaCorretiva !== 0) inc['gastoMes.corretiva'] = FieldValue.increment(deltaCorretiva);
 
     // PROPORÇÃO preventiva vs corretiva → prevVsCorr por QUANTIDADE de serviços.
     // Usa a mesma base do recálculo diário (calcularCountsPrevCorr). Antes este
     // trigger somava R$ aqui, misturando unidades (reais sobre uma contagem).
     const countsBefore = calcularCountsPrevCorr(before);
-    const countsAfter  = calcularCountsPrevCorr(after);
+    const countsAfter = calcularCountsPrevCorr(after);
     const deltaCountPreventiva = countsAfter.preventiva - countsBefore.preventiva;
-    const deltaCountCorretiva  = countsAfter.corretiva  - countsBefore.corretiva;
+    const deltaCountCorretiva = countsAfter.corretiva - countsBefore.corretiva;
 
-    if (deltaCountPreventiva !== 0) inc['prevVsCorr.preventiva'] = admin.firestore.FieldValue.increment(deltaCountPreventiva);
-    if (deltaCountCorretiva  !== 0) inc['prevVsCorr.corretiva']  = admin.firestore.FieldValue.increment(deltaCountCorretiva);
+    if (deltaCountPreventiva !== 0) inc['prevVsCorr.preventiva'] = FieldValue.increment(deltaCountPreventiva);
+    if (deltaCountCorretiva !== 0) inc['prevVsCorr.corretiva'] = FieldValue.increment(deltaCountCorretiva);
 
     // OFICINA → veiculosEmOficina
     if (!before.entregueOficinaEm && after.entregueOficinaEm) {
-      inc['veiculosEmOficina'] = admin.firestore.FieldValue.increment(1);
+      inc['veiculosEmOficina'] = FieldValue.increment(1);
     }
     if (!before.retornouOficinaEm && after.retornouOficinaEm) {
-      inc['veiculosEmOficina'] = admin.firestore.FieldValue.increment(-1);
+      inc['veiculosEmOficina'] = FieldValue.increment(-1);
     }
 
     if (Object.keys(inc).length === 0) return;
