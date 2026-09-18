@@ -17,7 +17,9 @@ import { ActivityIndicator, Button, Divider, Portal, Snackbar, Surface, Text, Te
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
+import { useConectividade } from '../hooks/useConectividade';
 import { changePassword, mapFirebaseError } from '../services/auth.service';
+import { mapStorageError } from '../services/storage.service';
 import { useAuthStore } from '../store/auth.store';
 
 const senhaSchema = z
@@ -41,11 +43,13 @@ const PERFIL_LABELS: Record<string, string> = {
 export default function PerfilScreen() {
   const { currentUser, updatePhoto } = useAuthStore();
   const router = useRouter();
+  const online = useConectividade();
 
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false);
   const [confirmarVisivel, setConfirmarVisivel] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
+  const [snackDuration, setSnackDuration] = useState(3000);
   const [snackVisible, setSnackVisible] = useState(false);
   const [senhaExpandida, setSenhaExpandida] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -64,9 +68,21 @@ export default function PerfilScreen() {
       .map((n) => n[0])
       .join('') ?? '';
 
-  const showSnack = (msg: string) => {
+  const showSnack = (msg: string, duration = 3000) => {
     setSnackMsg(msg);
+    setSnackDuration(duration);
     setSnackVisible(true);
+  };
+
+  /**
+   * O erro do Storage chega aqui inteiro — o detalhe técnico vai para o log e a
+   * tela recebe só o que a pessoa consegue fazer a respeito.
+   */
+  const mostrarFalhaUpload = (err: unknown) => {
+    const falha = mapStorageError(err, online);
+    console.warn(`[perfil] falha ao salvar foto (${falha.codigo}):`, err);
+    // Mensagem que manda procurar alguém precisa de mais tempo do que um "ok".
+    if (falha.mensagem) showSnack(falha.mensagem, falha.acao === 'avisar_gestor' ? 7000 : 5000);
   };
 
   const photoURL = currentUser?.photoURL ?? null;
@@ -77,7 +93,8 @@ export default function PerfilScreen() {
       try {
         await updatePhoto('https://placehold.co/200x200/1A5C2A/ffffff?text=' + initials);
         showSnack('Foto atualizada com sucesso!');
-      } catch {
+      } catch (err) {
+        console.warn('[perfil] falha ao definir foto padrão:', err);
         showSnack('Erro ao atualizar foto.');
       }
       return;
@@ -101,8 +118,8 @@ export default function PerfilScreen() {
         setUploadProgress(0);
         await updatePhoto(result.assets[0].uri, (pct) => setUploadProgress(pct));
         showSnack('Foto atualizada com sucesso!');
-      } catch {
-        showSnack('Erro ao salvar foto.');
+      } catch (err) {
+        mostrarFalhaUpload(err);
       } finally {
         setUploadProgress(null);
       }
@@ -113,7 +130,8 @@ export default function PerfilScreen() {
     try {
       await updatePhoto(null);
       showSnack('Foto removida.');
-    } catch {
+    } catch (err) {
+      console.warn('[perfil] falha ao remover foto:', err);
       showSnack('Erro ao remover foto.');
     }
   };
@@ -329,7 +347,7 @@ export default function PerfilScreen() {
         <Snackbar
           visible={snackVisible}
           onDismiss={() => setSnackVisible(false)}
-          duration={3000}
+          duration={snackDuration}
           style={styles.snackbar}
         >
           {snackMsg}

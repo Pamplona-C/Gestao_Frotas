@@ -163,6 +163,11 @@ export async function deleteFotosOS(fotoUrls: string[]): Promise<void> {
  *
  * Path: perfil-fotos/{uid}  (sobrescreve ao trocar de foto — sem acúmulo)
  * Retorna a URL pública permanente (HTTPS) para salvar no Auth + Firestore.
+ *
+ * Comprime antes de subir, como as demais rotas. O `quality` do ImagePicker
+ * reencoda o JPEG mas não mexe nas dimensões: o recorte de uma foto de 64 MP
+ * continua com milhares de pixels de lado e passa dos 5 MB que a regra de
+ * `perfil-fotos/` permite — metade do limite das outras pastas.
  */
 export async function uploadFotoPerfil(
   localUri: string,
@@ -171,7 +176,8 @@ export async function uploadFotoPerfil(
 ): Promise<string> {
   if (USAR_BACKEND) return backend.uploadFotoPerfil(localUri, uid, onProgress);
 
-  const response = await fetch(localUri);
+  const comprimida = await prepararFotoParaUpload(localUri);
+  const response = await fetch(comprimida);
   const blob = await response.blob();
 
   const storageRef = ref(storage, `perfil-fotos/${uid}`);
@@ -202,4 +208,84 @@ export async function uploadFotoPerfil(
       },
     );
   });
+}
+
+// ── Erros de upload ───────────────────────────────────────────────────────────
+
+/**
+ * O que a pessoa pode fazer a respeito. É isto que decide a mensagem: um
+ * condutor na rua não tem o que fazer com `storage/retry-limit-exceeded`.
+ */
+export type AcaoUsuario =
+  | 'tentar_novamente'
+  | 'trocar_arquivo'
+  | 'entrar_novamente'
+  | 'avisar_gestor'
+  | 'nenhuma';
+
+export interface FalhaUpload {
+  /** Texto para a tela — sem jargão e sem código do SDK. Vazio = não mostrar. */
+  mensagem: string;
+  acao:     AcaoUsuario;
+  /** Rabicho curto que o usuário repassa a quem dá suporte. */
+  codigo:   string;
+}
+
+/**
+ * Traduz o erro do Firebase Storage no que o usuário deve fazer.
+ *
+ * Recebe o estado da conexão porque o código sozinho não basta:
+ * `retry-limit-exceeded` é o mesmo quando o sinal está fraco e quando o
+ * servidor recusa todas as tentativas. Online + retentativas esgotadas
+ * significa que o problema não é do aparelho dele — e que insistir não resolve.
+ */
+export function mapStorageError(err: unknown, online: boolean): FalhaUpload {
+  const code = (err as { code?: string })?.code ?? '';
+
+  if (!online) {
+    return {
+      mensagem: 'Sem internet. A foto não foi enviada — tente de novo quando tiver sinal.',
+      acao:     'tentar_novamente',
+      codigo:   'ST-00',
+    };
+  }
+
+  switch (code) {
+    // O usuário abortou: não há falha a comunicar.
+    case 'storage/canceled':
+      return { mensagem: '', acao: 'nenhuma', codigo: 'ST-01' };
+
+    case 'storage/unauthenticated':
+      return {
+        mensagem: 'Sua sessão expirou. Entre novamente para continuar.',
+        acao:     'entrar_novamente',
+        codigo:   'ST-02',
+      };
+
+    // A regra do Storage recusou. Pode ser permissão, tamanho acima do limite
+    // ou formato — do lado do cliente os três chegam idênticos. A mensagem
+    // cobre primeiro o que ele resolve sozinho, antes de mandar escalar.
+    case 'storage/unauthorized':
+      return {
+        mensagem: 'Não foi possível enviar esta foto. Tente outra imagem; se continuar, avise o gestor. (ST-03)',
+        acao:     'trocar_arquivo',
+        codigo:   'ST-03',
+      };
+
+    case 'storage/quota-exceeded':
+      return {
+        mensagem: 'O armazenamento do sistema está indisponível. Avise o gestor. (ST-04)',
+        acao:     'avisar_gestor',
+        codigo:   'ST-04',
+      };
+
+    // Inclui `retry-limit-exceeded` e `unknown` com o aparelho online: o
+    // servidor recusou todas as tentativas.
+    default:
+      return {
+        mensagem: 'Não foi possível salvar a foto agora. O problema é no sistema, não no seu aparelho — avise o gestor. (ST-05)',
+        acao:     'avisar_gestor',
+        codigo:   'ST-05',
+      };
+  }
 }
