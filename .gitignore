@@ -48,3 +48,6 @@ app-example
 scripts/serviceAccountKey.json
 GoogleService-Info.plist
 *.code-workspace
+
+# APKs gerados pelo build local/EAS
+*.apk

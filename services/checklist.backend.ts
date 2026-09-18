@@ -217,9 +217,9 @@ export async function getChecklistsByVinculo(vinculoId: string): Promise<Checkli
  * backend, com filtro por data e paginação.
  */
 export async function getRecentChecklists(
-  startIso?: string,
-  pageSize = 200,
+  filtro: { inicioIso?: string; fimIso?: string; pageSize?: number } = {},
 ): Promise<Checklist[]> {
+  const { inicioIso, fimIso, pageSize = 200 } = filtro;
   const vinculos = await api.get<VinculoResponse[]>('/vinculos');
 
   const checklists = vinculos.flatMap((v) =>
@@ -228,7 +228,8 @@ export async function getRecentChecklists(
   );
 
   return checklists
-    .filter((c) => !startIso || c.completadoEm >= startIso)
+    .filter((c) => (!inicioIso || c.completadoEm >= inicioIso)
+      && (!fimIso || c.completadoEm <= fimIso))
     .sort((a, b) => b.completadoEm.localeCompare(a.completadoEm))
     .slice(0, pageSize);
 }

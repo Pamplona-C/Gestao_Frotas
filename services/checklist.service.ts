@@ -10,6 +10,7 @@ import {
   runTransaction,
   where,
   type DocumentData,
+  type QueryConstraint,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -152,7 +153,7 @@ export function subscribeToRecentChecklists(
     // uma resposta atrasada chame o callback depois que a tela já saiu.
     let cancelado = false;
     backend
-      .getRecentChecklists(undefined, pageSize)
+      .getRecentChecklists({ pageSize })
       .then((items) => {
         if (!cancelado) callback(items);
       })
@@ -172,26 +173,33 @@ export function subscribeToRecentChecklists(
   });
 }
 
+export type FiltroChecklists = {
+  /** Limite inferior inclusivo, ISO. Omitido = sem piso. */
+  inicioIso?: string;
+  /** Limite superior inclusivo, ISO. Quem chama manda o **fim do dia**. */
+  fimIso?: string;
+  pageSize?: number;
+};
+
+/**
+ * Checklists concluídos dentro de um intervalo.
+ *
+ * Os dois limites e o `orderBy` são no mesmo campo (`completadoEm`), então nenhuma
+ * combinação aqui exige índice composto. `completadoEm` é sempre gravado como
+ * `new Date().toISOString()` — comparar com string é comparação de mesmo tipo.
+ */
 export async function getRecentChecklists(
-  startIso?: string,
-  pageSize = 200,
+  filtro: FiltroChecklists = {},
 ): Promise<Checklist[]> {
-  if (USAR_BACKEND) return backend.getRecentChecklists(startIso, pageSize);
+  const { inicioIso, fimIso, pageSize = 200 } = filtro;
+  if (USAR_BACKEND) return backend.getRecentChecklists(filtro);
 
-  const q = startIso
-    ? query(
-      collection(db, 'checklists'),
-      where('completadoEm', '>=', startIso),
-      orderBy('completadoEm', 'desc'),
-      limit(pageSize),
-    )
-    : query(
-      collection(db, 'checklists'),
-      orderBy('completadoEm', 'desc'),
-      limit(pageSize),
-    );
+  const restricoes: QueryConstraint[] = [];
+  if (inicioIso) restricoes.push(where('completadoEm', '>=', inicioIso));
+  if (fimIso) restricoes.push(where('completadoEm', '<=', fimIso));
+  restricoes.push(orderBy('completadoEm', 'desc'), limit(pageSize));
 
-  const snap = await getDocs(q);
+  const snap = await getDocs(query(collection(db, 'checklists'), ...restricoes));
   return snap.docs.map((d) => docToChecklist(d.id, d.data()));
 }
 
