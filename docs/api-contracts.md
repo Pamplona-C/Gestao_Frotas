@@ -246,63 +246,85 @@ Observação: `onVinculoCriado` envia push, mas não persiste documento em `noti
 
 ## Cloud Functions
 
-### `onOSCreated`
+> Seção revisada em 17/09/2026. Dez functions deployadas em `southamerica-east1`, Node 20,
+> 512 MiB (1 vCPU). Nenhuma configura `retry`, então vale `RETRY_POLICY_DO_NOT_RETRY`: uma
+> exceção não tratada **descarta o evento** e a notificação se perde.
 
-| Item | Valor |
-|---|---|
-| Trigger | `onDocumentCreated('ordens-servico/{id}')` |
-| Destinatário | Todos os gestores com `fcmToken` |
-| Persistência | Cria `notificacoes` tipo `os_criada` para cada gestor |
+### Nome do veículo nas mensagens
 
-Payload FCM:
+`nomeVeiculo(os)` é a fonte única de como um veículo é nomeado em notificação. Cascata:
 
-```json
-{
-  "notification": {
-    "title": "Nova OS aguardando análise",
-    "body": "Aberta por {condutorNome} · {placa}"
-  },
-  "data": { "osId": "{id}" }
-}
+```
+veiculoModelo → placa → `Frota {frota}` → veiculoMarca → 'sem identificação'
 ```
 
-### `onOSStatusUpdated`
+Trata string vazia, só-espaços e o `'—'` que o app grava por padrão como ausência. Existe
+porque o painel web omite `frota` quando o veículo não tem, e o texto saía como
+`"Frota undefined"` no celular. Use o helper em vez de ler os campos direto.
 
-| Item | Valor |
-|---|---|
-| Trigger | `onDocumentUpdated('ordens-servico/{id}')` |
-| Condição | `before.status !== after.status` |
-| Destinatário | Condutor da OS |
-| Persistência | Cria `notificacoes` tipo `status_atualizado` |
+### Inventário
 
-Mensagens:
+| Function | Trigger | Destinatário | Grava em `notificacoes` |
+|---|---|---|---|
+| `onOSCreated` | create `ordens-servico/{id}` | todos os gestores com `fcmToken` | sim, `os_criada` |
+| `onOSStatusUpdated` | update, `before.status !== after.status` | condutor da OS | sim, `status_atualizado` |
+| `onVinculoCriado` | create `vinculos/{id}` | condutor (só o primeiro) | não |
+| `onOSEntregueOficina` | update, passou a ter `entregueOficinaEm` | gestor responsável | sim |
+| `onOSRetornoOficina` | update, passou a ter `retornouOficinaEm` | gestor responsável | sim |
+| `onOSGastoOuOficinaUpdated` | update de gasto/oficina | — | não (recalcula métricas) |
+| `onUsuarioDeleted` | delete `usuarios/{uid}` | — | não (apaga o usuário no Auth) |
+| `enviarLembretesOS` | agendada, 07:00 BRT | condutor da OS agendada para hoje | sim, `lembrete_os` |
+| `recalcularMetricasDiario` | agendada, 00:05 BRT | — | não (recalcula tudo do zero) |
+| `recalcularMetricasManual` | callable (exige gestor) | — | não |
 
-| Status | Título |
-|---|---|
-| `nova` | Nova OS |
-| `em_andamento` | OS em andamento |
-| `em_diagnostico` | OS em diagnóstico |
-| `orcamento_aprovado` | Orçamento aprovado |
-| `concluida` | OS concluída |
+### Textos
 
-### `onVinculoCriado`
+O `title`/`body` de cada mensagem é montado na function e usado **duas vezes**: no payload FCM e
+no documento de `notificacoes`. O app não reescreve nada — renderiza os campos como vieram. Mudar
+o texto afeta só notificações novas; o histórico guarda o que foi enviado.
 
-| Item | Valor |
-|---|---|
-| Trigger | `onDocumentCreated('vinculos/{id}')` |
-| Destinatário | Condutor vinculado |
-| Persistência | Não cria documento em `notificacoes` |
+| Notificação | Título | Corpo |
+|---|---|---|
+| OS aberta | `Nova OS aguardando análise` | `Aberta por {condutorNome} · {placa}` |
+| Status → nova | `Nova OS` | `OS do veículo {veiculo} foi aberta` |
+| Status → em_andamento | `OS em andamento` | `Sua OS do veículo {veiculo} está sendo atendida` |
+| Status → em_diagnostico | `OS em diagnóstico` | `Sua OS do veículo {veiculo} está em diagnóstico` |
+| Status → orcamento_aprovado | `Orçamento aprovado` | `O orçamento da OS do veículo {veiculo} foi aprovado` |
+| Status → concluida | `OS concluída` | `Sua OS do veículo {veiculo} foi concluída com sucesso` |
+| Vínculo criado | `Veículo vinculado` | `{marca} {modelo} (Frota {frota}) foi vinculado a você. Faça o checklist de entrada para começar.` |
+| Entregue na oficina | `Veículo entregue na oficina` | `{condutorNome} entregou o veículo {veiculo} na oficina` |
+| Retorno da oficina | `Veículo retornou da oficina` | `{condutorNome} retirou o veículo {veiculo} da oficina` |
+| Lembrete | `Lembrete de OS agendada` | `Sua OS do veículo {placa} está marcada para hoje. Não se esqueça de levar à oficina!` |
 
-Mensagem: `{marca} {modelo} (Frota {frota}) foi vinculado a você. Faça o checklist de entrada para começar.`
+O payload leva sempre `data: { osId }`, que é o que o toque na notificação usa para abrir a OS —
+o id saiu do texto, não do payload.
 
-### `enviarLembretesOS`
+### Ordem dentro de `onOSCreated`
 
-| Item | Valor |
-|---|---|
-| Trigger | Scheduler diário às 07:00 |
-| Timezone | `America/Sao_Paulo` |
-| Critério | OS ativa com `dataDesejada` igual a hoje e sem `lembreteEnviadoEm` |
-| Persistência | Cria `notificacoes` tipo `lembrete_os` e marca `lembreteEnviadoEm` |
+1. busca gestores com token
+2. **se houver**: push + histórico
+3. **sempre**: incrementa `metricas-frota/geral`, em `try/catch` próprio
+
+O incremento fica por último e isolado de propósito: é um documento único e quente (limite de
+~1 escrita por segundo), e o `recalcularMetricasDiario` reescreve tudo às 00:05 de qualquer forma.
+Deixá-lo na frente colocava a notificação atrás de uma escrita disputada, e uma falha dele
+derrubava o push. A etapa 2 é um bloco condicional, não um early return, para a etapa 3 rodar
+mesmo quando nenhum gestor tem token.
+
+### Concorrência
+
+Function de evento processa **um evento por instância**. Cinco OS simultâneas sobem até cinco
+contêineres **em paralelo**, não em fila — a latência total fica próxima à de uma única OS.
+`maxInstanceCount` é 20.
+
+### Pendências conhecidas
+
+- `enviarLembretesOS` lê `os.condutorId` sem guarda; OS administrativa (aberta por gestor, sem
+  condutor) faz o `Promise.all` rejeitar e pode deixar outras OS do dia sem lembrete.
+- `onVinculoCriado` lê só `condutorId`; um 2º condutor adicionado depois não recebe push, porque
+  não existe trigger de update em `vinculos`.
+- `onOSCreated` usa `placa` cru no corpo — OS sem placa gera `"Aberta por Fulano · "`. Deveria
+  usar `nomeVeiculo`.
 
 ## Storage
 
