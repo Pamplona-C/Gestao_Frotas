@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StepperHeader } from '../../components/StepperHeader';
 import { useNovaOSStore } from '../../store/novaOS.store';
 import { useAuthStore } from '../../store/auth.store';
-import { createOS, updateOS } from '../../services/os.service';
+import { createOS } from '../../services/os.service';
 import { uploadFotosOS } from '../../services/storage.service';
 import { Colors } from '../../constants/colors';
 
@@ -54,6 +54,19 @@ export default function Etapa6() {
         const fotosUris = store.fotos;
         const hodometroNum = store.hodometro ? parseInt(store.hodometro) : undefined;
 
+        // As fotos sobem ANTES da OS, com o veículo como pasta: a OS ainda não
+        // tem id. Era o contrário antes — a OS nascia e as URLs entravam depois,
+        // e uma falha no upload deixava a OS sem as fotos do problema.
+        let fotosUrls: string[] = [];
+        let fotosFalharam = false;
+        if (fotosUris.length > 0) {
+          try {
+            fotosUrls = await uploadFotosOS(fotosUris, store.veiculoId!, (pct) => setProgresso(pct));
+          } catch {
+            fotosFalharam = true;
+          }
+        }
+
         const novaOS = await createOS(Object.fromEntries(Object.entries({
           veiculoId:             store.veiculoId || undefined,
           veiculoMarca:          store.veiculoMarca || undefined,
@@ -72,17 +85,8 @@ export default function Etapa6() {
           dataDesejada:          store.dataDesejada || undefined,
           horario:               store.horario || undefined,
           observacoes:           store.observacoes || undefined,
+          fotos:                 fotosUrls.length > 0 ? fotosUrls : undefined,
         }).filter(([, v]) => v !== undefined)) as any);
-
-        let fotosFalharam = false;
-        if (fotosUris.length > 0) {
-          try {
-            const urls = await uploadFotosOS(fotosUris, novaOS.id, (pct) => setProgresso(pct));
-            await updateOS(novaOS.id, { fotos: urls });
-          } catch {
-            fotosFalharam = true;
-          }
-        }
 
         setOsId(novaOS.id);
         store.reset();

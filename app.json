@@ -26,10 +26,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "notification": {
-        "icon": "./assets/images/notification-icon.png",
-        "color": "#1A5C2A"
-      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -59,7 +55,25 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Sua localização é usada para registrar o local de atendimento da ordem de serviço."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#1A5C2A"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

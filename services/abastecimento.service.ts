@@ -10,7 +10,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
 import { uploadFotosGenerica } from './storage.service';
+import * as backend from './abastecimento.backend';
 import { Abastecimento, TipoCombustivel } from '../types';
 
 const COLLECTION = 'despesas-veiculo';
@@ -21,7 +23,8 @@ export interface NovoAbastecimentoInput {
   veiculoId:       string;
   veiculoPlaca:    string;
   veiculoFrota:    string;
-  hodometro:       number;
+  // Opcional: parte das motos da frota não tem odômetro.
+  hodometro?:      number;
   tipoCombustivel: TipoCombustivel;
   litros?:         number;
   valor:           number;
@@ -32,6 +35,8 @@ export async function criarAbastecimento(
   fotoUri?: string,
   onProgress?: (pct: number) => void,
 ): Promise<string> {
+  if (USAR_BACKEND) return backend.criarAbastecimento(input, fotoUri, onProgress);
+
   const now = new Date();
   const competencia = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -67,6 +72,22 @@ export function subscribeToAbastecimentosByCondutor(
   condutorId: string,
   callback: (items: Abastecimento[]) => void,
 ): Unsubscribe {
+  if (USAR_BACKEND) {
+    // Sem tempo real no REST: busca uma vez e devolve um unsubscribe que não faz
+    // nada. `cancelado` evita que uma resposta atrasada chame o callback depois
+    // que a tela já saiu.
+    let cancelado = false;
+    backend
+      .listarPorCondutor(condutorId)
+      .then((items) => {
+        if (!cancelado) callback(items);
+      })
+      .catch((err) => console.warn('[abastecimento] falha ao listar:', err));
+    return () => {
+      cancelado = true;
+    };
+  }
+
   const q = query(
     collection(db, COLLECTION),
     where('condutorId', '==', condutorId),

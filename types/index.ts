@@ -180,7 +180,8 @@ export interface Abastecimento {
   veiculoId:        string;
   veiculoPlaca:     string;
   veiculoFrota:     string;
-  hodometro:        number;
+  // Opcional: parte das motos da frota não tem odômetro.
+  hodometro?:       number;
   tipoCombustivel:  TipoCombustivel;
   litros?:          number;
   valor:            number;
@@ -192,6 +193,12 @@ export interface Abastecimento {
 
 export interface OrdemServico {
   id: string;
+  /**
+   * Número sequencial legível ("OS #42") — a etiqueta usada para falar da OS.
+   * O `id` continua sendo a chave técnica (URL, API). Ausente nas OS que ainda
+   * vivem no Firestore, que nunca tiveram numeração.
+   */
+  numero?: number;
   veiculoId?: string;
   origemChecklistId?: string;
   origemVinculoId?: string;
@@ -200,8 +207,9 @@ export interface OrdemServico {
   veiculoTipo?: VeiculoTipo;
   placa?: string;
   frota: string;
-  condutorId: string;
-  condutorNome: string;
+  /** Ausente em OS administrativa (veículo sem vínculo ativo). */
+  condutorId?: string;
+  condutorNome?: string;
   hodometro?: number;
   servicos?: string[];
   descricao?: string;

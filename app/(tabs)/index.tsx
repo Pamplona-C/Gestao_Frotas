@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,6 +12,7 @@ import { Text, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../../store/auth.store';
 import { useConectividade } from '../../hooks/useConectividade';
 import { OSCard } from '../../components/OSCard';
@@ -28,6 +29,38 @@ import { subscribeToAllFornecedores } from '../../services/fornecedor.service';
 import { subscribeToVinculosByCondutorId } from '../../services/vinculo.service';
 import { OrdemServico, OSStatus, Fornecedor, Vinculo, MetricasFrota } from '../../types';
 import { Colors } from '../../constants/colors';
+import { USAR_BACKEND } from '../../lib/flags';
+
+/**
+ * Refaz as buscas da tela quando ela volta ao foco e no puxar-para-baixo.
+ *
+ * No Firestore os `subscribeTo*` eram listeners vivos: qualquer escrita
+ * redesenhava a tela sozinha, e por isso o puxar-para-baixo nunca precisou
+ * fazer nada. No REST eles viraram busca única — sem isto, a home continua
+ * mostrando o estado de quando foi montada (ex.: o veículo aparece como
+ * vinculado depois de o checklist já ter encerrado o vínculo).
+ *
+ * Devolve um contador que entra nas dependências do efeito de carga.
+ */
+function useRecarga(): [number, () => void] {
+  const [versao, setVersao] = useState(0);
+  const recarregar = useCallback(() => setVersao((n) => n + 1), []);
+
+  const primeiroFoco = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      // O efeito de carga já roda na montagem; recarregar aqui duplicaria a
+      // busca logo na abertura do app.
+      if (primeiroFoco.current) {
+        primeiroFoco.current = false;
+        return;
+      }
+      if (USAR_BACKEND) recarregar();
+    }, [recarregar]),
+  );
+
+  return [versao, recarregar];
+}
 
 type ChecklistStatus = 'pendente_entrada' | 'em_uso' | 'pendente_saida';
 function getChecklistStatus(v: Vinculo): ChecklistStatus {
@@ -51,6 +84,7 @@ function Home() {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [versao, recarregar] = useRecarga();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -66,14 +100,15 @@ function Home() {
       setVinculos(all.filter((v) => v.status === 'ativo'));
     });
     return () => { unsubOS(); unsubForn(); unsubVinculos(); };
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, versao]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // onSnapshot já é real-time — o listener vai disparar e setar refreshing=false
-    // Timeout de segurança caso não haja mudanças
-    setTimeout(() => setRefreshing(false), 2000);
-  }, []);
+    if (USAR_BACKEND) recarregar();
+    // Rede de segurança: quem desliga o spinner é a chegada dos dados, e uma
+    // busca que falha nunca chega. Sem isto o spinner ficaria girando para sempre.
+    setTimeout(() => setRefreshing(false), 5000);
+  }, [recarregar]);
 
   const abertas = useMemo(
     () => ordens.filter((o) => o.status !== 'concluida').length,
@@ -269,6 +304,7 @@ function GestorDashboard() {
   const [filtro, setFiltro] = useState<OSStatus | 'todas'>('todas');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [versao, recarregar] = useRecarga();
 
   useEffect(() => {
     const unsubOS = subscribeToAllOS((data, _m) => {
@@ -282,12 +318,13 @@ function GestorDashboard() {
     const unsubMetricas = subscribeToMetricas(setMetricas);
     seedMetricasSeNecessario().catch(() => null);
     return () => { unsubOS(); unsubForn(); unsubMetricas(); };
-  }, []);
+  }, [versao]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
-  }, []);
+    if (USAR_BACKEND) recarregar();
+    setTimeout(() => setRefreshing(false), 5000);
+  }, [recarregar]);
 
   const gastoFormatado = useMemo(() => {
     const v = metricas.gastoMes.total;

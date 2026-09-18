@@ -26,10 +26,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { Fornecedor } from '../../types';
 import {
   getFornecedoresPaginados,
+  type CursorFornecedores,
   getAllFornecedores,
   createFornecedor,
   updateFornecedor,
@@ -57,7 +57,7 @@ export default function FornecedoresScreen() {
   const { bottom: bottomInset } = useSafeAreaInsets();
 
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [cursor, setCursor] = useState<CursorFornecedores>(null);
   const [hasMore, setHasMore] = useState(true);
   const [carregando, setCarregando] = useState(false);
   const [carregandoMais, setCarregandoMais] = useState(false);
@@ -75,13 +75,18 @@ export default function FornecedoresScreen() {
   });
 
   // ── Paginação ────────────────────────────────────────────────────────────
-  const carregarPrimeiraPagina = useCallback(async () => {
+  /**
+   * @param ignorarCache  true quando o usuário puxou para atualizar. Um refresh
+   *   explícito significa "quero o dado agora" — mostrar o cache primeiro daria
+   *   a impressão de que nada mudou.
+   */
+  const carregarPrimeiraPagina = useCallback(async (ignorarCache = false) => {
     // 1. Mostra cache imediatamente (se válido)
-    const cached = await cacheGet<Fornecedor[]>(CACHE_KEY);
+    const cached = ignorarCache ? null : await cacheGet<Fornecedor[]>(CACHE_KEY);
     if (cached) {
       setFornecedores(cached);
       setCarregando(false);
-    } else {
+    } else if (!ignorarCache) {
       setCarregando(true);
     }
 
@@ -92,6 +97,10 @@ export default function FornecedoresScreen() {
       setCursor(res.cursor);
       setHasMore(res.hasMore);
       cacheSet(CACHE_KEY, res.items);
+    } catch (err) {
+      // Sem isto a falha some: a lista fica com o cache antigo e o usuário
+      // acha que atualizou. Ao menos deixa rastro no log.
+      console.warn('[fornecedores] falha ao carregar:', err);
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -100,10 +109,18 @@ export default function FornecedoresScreen() {
 
   const carregarMais = useCallback(async () => {
     if (!hasMore || carregandoMais || buscaRef.current.trim()) return;
+    // Sem cursor, a primeira página ainda não voltou. Paginar agora buscaria a
+    // página 0 de novo e duplicaria a lista — o `onEndReached` dispara sozinho
+    // quando o conteúdo é menor que a tela.
+    if (!cursor) return;
     setCarregandoMais(true);
     try {
       const res = await getFornecedoresPaginados(cursor);
-      setFornecedores((prev) => [...prev, ...res.items]);
+      setFornecedores((prev) => {
+        // Rede de segurança: nunca repetir um item já presente.
+        const conhecidos = new Set(prev.map((i) => i.id));
+        return [...prev, ...res.items.filter((i) => !conhecidos.has(i.id))];
+      });
       setCursor(res.cursor);
       setHasMore(res.hasMore);
     } finally {
@@ -154,7 +171,9 @@ export default function FornecedoresScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setBusca('');
-    carregarPrimeiraPagina();
+    setCursor(null);
+    cacheInvalidate(CACHE_KEY);
+    carregarPrimeiraPagina(true);
   }, [carregarPrimeiraPagina]);
 
   // ── Agrupamento por cidade ────────────────────────────────────────────────
@@ -442,11 +461,20 @@ const FornecedorCard = React.memo(function FornecedorCard({
       ) : null}
     </Surface>
   );
-}, (prev, next) =>
-  prev.fornecedor.id === next.fornecedor.id &&
-  prev.fornecedor.nome === next.fornecedor.nome &&
-  prev.fornecedor.cidade === next.fornecedor.cidade
-);
+}, (prev, next) => {
+  // Compara TODOS os campos, não uma lista escolhida a dedo: um comparador
+  // parcial faz o card ignorar a atualização de qualquer campo esquecido — o
+  // dado chega da API, entra no estado e nunca aparece na tela.
+  // As props de callback ficam de fora de propósito: são recriadas a cada
+  // render do `renderItem`, e compará-las anularia a memoização.
+  const a = prev.fornecedor;
+  const b = next.fornecedor;
+  const chaves = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof typeof a>;
+  for (const k of chaves) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },

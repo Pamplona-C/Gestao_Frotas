@@ -17,6 +17,7 @@ import { Button, Surface, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
+import { AUTH_BACKEND } from '../services/auth.service';
 import { useAuthStore } from '../store/auth.store';
 
 // WebBrowser.maybeCompleteAuthSession(); // TODO: Google Sign-In — implementação futura
@@ -191,7 +192,19 @@ export default function LoginScreen() {
               Entrar
             </Button>
 
-            {/* TODO: Google Sign-In — implementação futura */}
+            {/* Recuperação de senha: só existe com a autenticação no backend.
+                No modo Firebase o link fica escondido, porque o fluxo de código
+                por e-mail é do moovia-backend. */}
+            {AUTH_BACKEND && (
+              <Button
+                mode="text"
+                onPress={() => router.push('/esqueci-senha')}
+                disabled={isSubmitting}
+                style={styles.linkEsqueci}
+              >
+                Esqueci minha senha
+              </Button>
+            )}
           </Surface>
         </ScrollView>
       </SafeAreaView>
@@ -200,6 +213,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  linkEsqueci: { marginTop: 4 },
   kav: { flex: 1, backgroundColor: Colors.primary },
   safe: { flex: 1 },
 

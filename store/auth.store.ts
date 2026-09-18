@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import {
+  AUTH_BACKEND,
   signInWithEmail,
   signInWithGoogleIdToken,
   signOut,
   updatePhotoURL,
-  mapFirebaseError,
+  mapAuthError,
 } from '../services/auth.service';
-import { registrarTokenFCM } from '../services/notification.service';
+import { registrarTokenFCM, removerTokenDispositivo } from '../services/notification.service';
 import { auth } from '../lib/firebase';
 import { AppUser } from '../types';
 
@@ -42,12 +43,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       registrarTokenFCM(user.uid).catch(console.warn);
       return true;
     } catch (err) {
-      set({ error: mapFirebaseError(err).message });
+      set({ error: mapAuthError(err).message });
       return false;
     }
   },
 
+  // Aposentado: não haverá login por Google. Mantido só enquanto o caminho
+  // Firebase existir — a tela de login já não oferece o botão.
   loginWithGoogle: async (idToken) => {
+    if (AUTH_BACKEND) {
+      set({ error: 'Login com Google não está mais disponível.' });
+      return false;
+    }
     set({ error: null });
     try {
       const user = await signInWithGoogleIdToken(idToken);
@@ -55,20 +62,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       registrarTokenFCM(user.uid).catch(console.warn);
       return true;
     } catch (err) {
-      set({ error: mapFirebaseError(err).message });
+      set({ error: mapAuthError(err).message });
       return false;
     }
   },
 
   logout: async () => {
+    // Antes de descartar a sessão: para de receber push neste aparelho.
+    await removerTokenDispositivo().catch(console.warn);
     await signOut();
     set({ currentUser: null, error: null });
   },
 
   updatePhoto: async (uri, onProgress) => {
-    await updatePhotoURL(uri, onProgress);
-    // updatePhotoURL pode ter feito upload e gerado uma URL nova — reler do Auth
-    const finalURL = auth.currentUser?.photoURL ?? uri;
+    // A URL final vem de quem gravou — o upload gera uma URL nova, diferente da
+    // URI local. Guardar a URI local aqui era o motivo de a foto sumir ao
+    // reabrir o app: ela só existia no aparelho, nunca no servidor.
+    const gravada = await updatePhotoURL(uri, onProgress);
+    const finalURL = gravada ?? (!AUTH_BACKEND ? auth.currentUser?.photoURL : null) ?? uri;
     set((s) => ({
       currentUser: s.currentUser ? { ...s.currentUser, photoURL: finalURL } : null,
     }));

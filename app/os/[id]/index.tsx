@@ -20,7 +20,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Timeline } from '../../../components/Timeline';
-import { subscribeToOSById, marcarEntregueOficina, marcarRetornoOficina } from '../../../services/os.service';
+import { subscribeToOSById, getOSById, marcarEntregueOficina, marcarRetornoOficina } from '../../../services/os.service';
 import { getFornecedorById } from '../../../services/fornecedor.service';
 import { getVeiculoById } from '../../../services/veiculo.service';
 import { useAuthStore } from '../../../store/auth.store';
@@ -143,7 +143,9 @@ export default function OSDetailScreen() {
     ? format(parseISO(os.dataDesejada), 'dd/MM/yyyy', { locale: ptBR })
     : null;
 
-  const condutorInitials = os.condutorNome
+  const condutorNome = os.condutorNome ?? '';
+  const temCondutor = !!os.condutorId;
+  const condutorInitials = condutorNome
     .split(' ')
     .slice(0, 2)
     .map((n) => n[0])
@@ -174,6 +176,9 @@ export default function OSDetailScreen() {
             setLoadingOficina(true);
             try {
               await marcarEntregueOficina(os.id);
+              // Sem tempo real, nada redesenharia a tela: o botão continuaria
+              // ali como se a entrega não tivesse sido registrada.
+              setOS(await getOSById(os.id));
             } catch {
               Alert.alert('Erro', 'Não foi possível registrar a entrega.');
             } finally {
@@ -197,6 +202,7 @@ export default function OSDetailScreen() {
             setLoadingOficina(true);
             try {
               await marcarRetornoOficina(os.id);
+              setOS(await getOSById(os.id));
             } catch {
               Alert.alert('Erro', 'Não foi possível registrar o retorno.');
             } finally {
@@ -240,7 +246,14 @@ export default function OSDetailScreen() {
         {/* Status badge */}
         <View style={styles.statusRow}>
           <StatusBadge status={os.status} />
-          <Text variant="labelSmall" style={{ color: Colors.textHint }}>{os.id.toUpperCase()}</Text>
+          {/* O UUID cru tem 36 caracteres e era cortado na tela — e ninguém diz
+              um UUID em voz alta. O número sequencial é a etiqueta que as
+              pessoas usam para se referir à OS. OS antigas (Firestore) não têm
+              numeração: para elas fica o começo do id, que ao menos cabe. */}
+          <Text variant="labelSmall" style={styles.osRef}>
+            {os.numero ? `OS #${os.numero}` : `#${os.id.slice(0, 8).toUpperCase()}`}
+            {` · ${format(parseISO(os.criadoEm), 'dd/MM/yy')}`}
+          </Text>
         </View>
 
         {/* Info card */}
@@ -267,31 +280,50 @@ export default function OSDetailScreen() {
             </View>
           </View>
 
-          {/* Condutor com foto */}
+          {/* Condutor com foto — ou rótulo de OS administrativa */}
           <View style={styles.condutorRow}>
-            {os.condutorPhotoURL ? (
-              <ExpoImage
-                source={{ uri: os.condutorPhotoURL }}
-                style={styles.condutorAvatar}
-                cachePolicy="memory-disk"
-                transition={200}
-              />
+            {temCondutor ? (
+              <>
+                {os.condutorPhotoURL ? (
+                  <ExpoImage
+                    source={{ uri: os.condutorPhotoURL }}
+                    style={styles.condutorAvatar}
+                    cachePolicy="memory-disk"
+                    transition={200}
+                  />
+                ) : (
+                  <View style={styles.condutorAvatarFallback}>
+                    <Text style={styles.condutorInitials}>{condutorInitials}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
+                  <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                    {condutorNome}
+                  </Text>
+                  {os.condutorDepartamento ? (
+                    <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                      {os.condutorDepartamento}
+                    </Text>
+                  ) : null}
+                </View>
+              </>
             ) : (
-              <View style={styles.condutorAvatarFallback}>
-                <Text style={styles.condutorInitials}>{condutorInitials}</Text>
-              </View>
+              <>
+                <View style={[styles.condutorAvatarFallback, { backgroundColor: Colors.textHint }]}>
+                  <Ionicons name="construct-outline" size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
+                  <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
+                    OS administrativa
+                  </Text>
+                  <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
+                    Veículo sem motorista vinculado
+                  </Text>
+                </View>
+              </>
             )}
-            <View style={{ flex: 1 }}>
-              <Text variant="labelSmall" style={{ color: Colors.textHint }}>Condutor</Text>
-              <Text variant="bodyMedium" style={{ color: Colors.textPrimary, fontWeight: '500' }}>
-                {os.condutorNome}
-              </Text>
-              {os.condutorDepartamento ? (
-                <Text variant="labelSmall" style={{ color: Colors.textSecondary }}>
-                  {os.condutorDepartamento}
-                </Text>
-              ) : null}
-            </View>
           </View>
 
           {/* Gestor responsável */}
@@ -366,7 +398,7 @@ export default function OSDetailScreen() {
 
         {/* Fotos da OS */}
         {os.fotos && os.fotos.length > 0 && (
-          <FotoGaleria fotos={os.fotos} condutorNome={os.condutorNome} />
+          <FotoGaleria fotos={os.fotos} condutorNome={condutorNome} />
         )}
 
         {/* Fornecedor */}
@@ -568,6 +600,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  osRef: { color: Colors.textHint, fontVariant: ['tabular-nums'] },
   card: { borderRadius: 12, padding: 14, backgroundColor: Colors.card },
   cardTitle: { fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
   oficinRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

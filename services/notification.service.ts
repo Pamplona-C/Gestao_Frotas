@@ -13,6 +13,47 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
+import { api } from '../lib/api';
+
+/**
+ * Guarda o token no destino certo conforme a migração.
+ *
+ * Diferença que importa: no Firestore o token ficava **no documento do
+ * usuário**, um por pessoa — trocar de aparelho derrubava o push do anterior.
+ * O backend guarda em `device_tokens`, vários por pessoa, então quem usa
+ * celular e tablet recebe nos dois.
+ */
+/**
+ * Último token registrado nesta sessão. O backend remove o aparelho **pelo
+ * token**, então precisamos lembrar qual enviamos — sem isso o logout não teria
+ * o que apagar e o aparelho continuaria recebendo push.
+ */
+let ultimoTokenRegistrado: string | null = null;
+
+async function salvarToken(uid: string, token: string): Promise<void> {
+  ultimoTokenRegistrado = token;
+  if (USAR_BACKEND) {
+    await api.post('/usuarios/me/dispositivos', {
+      token,
+      plataforma: Platform.OS.toUpperCase(),
+    });
+    return;
+  }
+  await updateDoc(doc(db, 'usuarios', uid), { fcmToken: token });
+}
+
+/** Chamado no logout: para de receber push neste aparelho. */
+export async function removerTokenDispositivo(): Promise<void> {
+  if (!USAR_BACKEND || !ultimoTokenRegistrado) return;
+  try {
+    await api.delete('/usuarios/me/dispositivos', { token: ultimoTokenRegistrado });
+    ultimoTokenRegistrado = null;
+  } catch (err) {
+    // Falhar aqui não pode impedir o logout — o token expira sozinho no FCM.
+    console.warn('[FCM] removerTokenDispositivo:', err);
+  }
+}
 
 export const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -51,10 +92,10 @@ export async function registrarTokenFCM(uid: string): Promise<void> {
     if (!concedida) return;
 
     const token: string = await getToken(m);
-    await updateDoc(doc(db, 'usuarios', uid), { fcmToken: token });
+    await salvarToken(uid, token);
 
     onTokenRefresh(m, (novoToken: string) => {
-      updateDoc(doc(db, 'usuarios', uid), { fcmToken: novoToken }).catch(console.warn);
+      salvarToken(uid, novoToken).catch(console.warn);
     });
   } catch (err) {
     console.warn('[FCM] registrarTokenFCM:', err);

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../store/auth.store';
-import { subscribeToNotificacoes } from '../services/notificacoes.service';
+import { contarNaoLidas } from '../services/notificacoes.service';
 import { Colors } from '../constants/colors';
 
 export function NotificationBell() {
@@ -12,13 +13,19 @@ export function NotificationBell() {
   const { currentUser } = useAuthStore();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    if (!currentUser?.uid) return;
-    const unsub = subscribeToNotificacoes(currentUser.uid, (items) => {
-      setUnreadCount(items.filter((n) => !n.read).length);
-    });
-    return unsub;
-  }, [currentUser?.uid]);
+  // Recarrega toda vez que a tela dona do sino volta ao foco — é o que faz o
+  // badge cair depois de ler as notificações. Com onSnapshot isso vinha de
+  // graça; sem tempo real, sem isto o número só mudaria ao reabrir o app.
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentUser?.uid) return;
+      let cancelado = false;
+      contarNaoLidas(currentUser.uid)
+        .then((n) => { if (!cancelado) setUnreadCount(n); })
+        .catch((err) => console.warn('[sino] falha ao contar não lidas:', err));
+      return () => { cancelado = true; };
+    }, [currentUser?.uid]),
+  );
 
   return (
     <Pressable

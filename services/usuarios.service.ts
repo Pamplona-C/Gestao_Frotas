@@ -11,7 +11,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { USAR_BACKEND } from '../lib/flags';
 import { AppUser } from '../types';
+import * as backend from './usuarios.backend';
 
 const CONDUTORES_LIMIT = 30;
 
@@ -27,9 +29,20 @@ function normalizeSearchText(value: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/**
+ * No backend não há tempo real: busca uma vez e devolve cancelamento vazio.
+ */
 export function subscribeToCondutores(
   callback: (condutores: AppUser[]) => void,
 ): Unsubscribe {
+  if (USAR_BACKEND) {
+    let cancelado = false;
+    backend.getCondutoresAtivos({ limite: 500 })
+      .then((us) => { if (!cancelado) callback(us); })
+      .catch((err) => console.warn('[condutores] falha ao carregar:', err));
+    return () => { cancelado = true; };
+  }
+
   const q = query(
     collection(db, 'usuarios'),
     where('perfil', '==', 'condutor'),
@@ -41,6 +54,8 @@ export function subscribeToCondutores(
 }
 
 export async function getGestoresAtivos(): Promise<AppUser[]> {
+  if (USAR_BACKEND) return backend.getGestoresAtivos();
+
   const snap = await getDocs(
     query(
       collection(db, 'usuarios'),
@@ -60,6 +75,8 @@ export async function getCondutoresAtivos({
   busca?: string;
   limite?: number;
 } = {}): Promise<AppUser[]> {
+  if (USAR_BACKEND) return backend.getCondutoresAtivos({ busca, limite });
+
   const termo = normalizeSearchText(busca);
 
   if (termo) {
